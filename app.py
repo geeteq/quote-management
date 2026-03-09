@@ -125,12 +125,13 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
     cursor = db.cursor()
 
     try:
-        # Check for duplicate quote_id before inserting
-        existing = cursor.execute(
-            'SELECT id FROM quotes WHERE quote_id = ?', (quote_data.get('quote_id'),)
-        ).fetchone()
-        if existing:
-            raise ValueError(f"Quote '{quote_data.get('quote_id')}' already exists (record ID {existing[0]}). Delete it first or upload a different file.")
+        # Resolve quote_id — suffix with -2, -3 … if already taken
+        base_quote_id = quote_data.get('quote_id') or 'UNKNOWN'
+        quote_id = base_quote_id
+        counter = 2
+        while cursor.execute('SELECT 1 FROM quotes WHERE quote_id = ?', (quote_id,)).fetchone():
+            quote_id = f"{base_quote_id}-{counter}"
+            counter += 1
 
         # Insert quote (with parameterized queries for SQL injection protection)
         cursor.execute('''
@@ -139,7 +140,7 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
                                tenant_id, project_id, tenant_name, project_name, ica)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            quote_data.get('quote_id'),
+            quote_id,
             quote_data.get('vendor'),
             quote_data.get('customer_name'),
             quote_data.get('quote_date'),
@@ -430,8 +431,33 @@ def upload_quote():
     logger.info(f"Processing upload: {file.filename}")
 
     try:
-        # Save file
-        filename = secure_filename(file.filename)
+        # Get metadata first so we can build the filename
+        tenant_id = request.form.get('tenant_id', '').strip()
+        project_id = request.form.get('project_id', '').strip()
+        ica = request.form.get('ica', '').strip()
+
+        tenant_id = int(tenant_id) if tenant_id else None
+        project_id = int(project_id) if project_id else None
+
+        # Look up tenant/project names for the filename
+        db = get_db()
+        tenant_name = ''
+        project_name = ''
+        if tenant_id:
+            row = db.execute('SELECT name FROM tenants WHERE id = ?', (tenant_id,)).fetchone()
+            if row:
+                tenant_name = row['name']
+        if project_id:
+            row = db.execute('SELECT name FROM projects WHERE id = ?', (project_id,)).fetchone()
+            if row:
+                project_name = row['name']
+        db.close()
+
+        # Build filename: {tenant}-{project}-{ica}-{original}
+        parts = [tenant_name, project_name, ica]
+        prefix = '-'.join(secure_filename(p) for p in parts if p)
+        original_name = secure_filename(file.filename)
+        filename = f"{prefix}-{original_name}" if prefix else original_name
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
@@ -448,17 +474,6 @@ def upload_quote():
         parser = QuoteParser(filepath)
         result = parser.parse()
         logger.info(f"Parsed {len(result.get('line_items', []))} line items from {filename}")
-
-        # Get additional metadata from form (sanitized via parameterized queries)
-        tenant_id = request.form.get('tenant_id', '').strip()
-        project_id = request.form.get('project_id', '').strip()
-        tenant_name = request.form.get('tenant_name', '').strip()
-        project_name = request.form.get('project_name', '').strip()
-        ica = request.form.get('ica', '').strip()
-
-        # Convert IDs to int or None
-        tenant_id = int(tenant_id) if tenant_id else None
-        project_id = int(project_id) if project_id else None
 
         # Save to database
         logger.info(f"Saving quote to database: {result['quote'].get('quote_id', 'Unknown')}")
@@ -480,15 +495,6 @@ def upload_quote():
             'quote_id': quote_db_id,
             'redirect': url_for('view_quote', quote_id=quote_db_id)
         })
-
-    except ValueError as e:
-        logger.warning(f"Upload rejected for {file.filename}: {e}")
-        if 'filepath' in locals() and os.path.exists(filepath):
-            try:
-                os.remove(filepath)
-            except Exception:
-                pass
-        return jsonify({'error': str(e)}), 409
 
     except Exception as e:
         logger.error(f"Error processing upload {file.filename}: {e}", exc_info=True)
