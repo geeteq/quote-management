@@ -1039,6 +1039,35 @@ button:hover {
     margin: 0;
 }
 
+/* Sidebar Footer */
+.nav-sidebar-footer {
+    margin-top: auto;
+    padding: 16px 20px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.nav-sidebar-footer a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #667eea;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 14px;
+    border-radius: 8px;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.nav-sidebar-footer a:hover {
+    background: #f0f2ff;
+}
+
+.nav-sidebar-footer svg {
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
 /* Sidebar Upload Button */
 .sidebar-upload {
     padding: 20px;
