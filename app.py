@@ -598,12 +598,51 @@ def admin_tenants():
     """List all tenants."""
     db = get_db()
     tenants = db.execute('''
-        SELECT id, name, created_at, updated_at, status
+        SELECT id, name, contact_name, created_at, updated_at, status
         FROM tenants
         ORDER BY name
     ''').fetchall()
     db.close()
     return render_template('admin/tenants_list.html', tenants=[dict(t) for t in tenants])
+
+
+@app.route('/admin/tenants/<int:tenant_id>/edit')
+def admin_tenant_edit(tenant_id):
+    """Show edit form for a tenant."""
+    db = get_db()
+    tenant = db.execute(
+        'SELECT id, name, contact_name, status FROM tenants WHERE id = ?', (tenant_id,)
+    ).fetchone()
+    db.close()
+    if not tenant:
+        return "Tenant not found", 404
+    return render_template('admin/tenant_edit.html', tenant=dict(tenant))
+
+
+@app.route('/admin/tenants/<int:tenant_id>/update', methods=['POST'])
+def admin_tenant_update(tenant_id):
+    """Save tenant edits and redirect to admin."""
+    tenant_name = request.form.get('tenant_name', '').strip()
+    contact_name = request.form.get('contact_name', '').strip()
+
+    if not tenant_name:
+        return "Tenant name is required", 400
+
+    db = get_db()
+    try:
+        db.execute('''
+            UPDATE tenants
+            SET name = ?, contact_name = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (tenant_name, contact_name or None, tenant_id))
+        db.commit()
+        logger.info(f"Updated tenant {tenant_id}: name={tenant_name}, contact={contact_name}")
+    except sqlite3.IntegrityError:
+        return "A tenant with that name already exists", 400
+    finally:
+        db.close()
+
+    return redirect(url_for('admin_dashboard'))
 
 
 @app.route('/admin/tenants/new')

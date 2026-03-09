@@ -1810,6 +1810,26 @@ button:hover {
     transform: translateX(3px);
 }
 
+.btn-icon-edit {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    background: #f0f2ff;
+    color: #667eea;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.2s, color 0.2s;
+    white-space: nowrap;
+}
+
+.btn-icon-edit:hover {
+    background: #667eea;
+    color: white;
+}
+
 .tenant-name {
     font-weight: 600;
     color: #333;

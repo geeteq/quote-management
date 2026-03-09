@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Tenant - Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="admin-form-page">
+        <div class="admin-form-container">
+            <div class="admin-form-header">
+                <h1>Edit Tenant</h1>
+                <a href="/admin" class="back-link">← Back to Admin</a>
+            </div>
+
+            <form method="POST" action="/admin/tenants/{{ tenant.id }}/update" class="admin-form">
+                <div class="form-group">
+                    <label for="tenantName">Tenant Name <span class="required">*</span></label>
+                    <input
+                        type="text"
+                        id="tenantName"
+                        name="tenant_name"
+                        value="{{ tenant.name }}"
+                        required
+                        autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label for="contactName">Contact Name</label>
+                    <input
+                        type="text"
+                        id="contactName"
+                        name="contact_name"
+                        value="{{ tenant.contact_name or '' }}"
+                        placeholder="Enter contact name">
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Save</button>
+                    <a href="/admin" class="btn-secondary">Discard</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
