@@ -1444,11 +1444,63 @@ button:hover {
     }
 }
 
-/* Admin Button (Top Right) */
-.admin-button {
+/* Top Actions Bar (Admin + Compare buttons) */
+.top-actions {
     position: fixed;
     top: 20px;
     right: 20px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    z-index: 999;
+}
+
+.compare-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: white;
+    color: #999;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: not-allowed;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.compare-button.ready {
+    color: #667eea;
+    border-color: #667eea;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.compare-button.ready:hover {
+    background: #667eea;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.compare-count {
+    background: #667eea;
+    color: white;
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 12px;
+    min-width: 20px;
+    text-align: center;
+}
+
+.compare-button:not(.ready) .compare-count {
+    background: #ccc;
+}
+
+/* Admin Button */
+.admin-button {
     background: white;
     color: #667eea;
     padding: 12px 20px;
@@ -1460,7 +1512,6 @@ button:hover {
     display: flex;
     align-items: center;
     gap: 8px;
-    z-index: 999;
     transition: all 0.3s ease;
 }
 
@@ -1474,6 +1525,28 @@ button:hover {
 .admin-button svg {
     width: 20px;
     height: 20px;
+}
+
+/* Quote card selected state */
+.quote-card-mini.selected {
+    border: 2px solid #667eea;
+    box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+}
+
+/* Compare checkbox on card */
+.card-compare-check {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    padding: 2px;
+    margin-left: 8px;
+}
+
+.card-compare-check input[type="checkbox"] {
+    width: 17px;
+    height: 17px;
+    cursor: pointer;
+    accent-color: #667eea;
 }
 
 /* Top Divider */
@@ -2455,8 +2528,9 @@ button:hover {
         flex-direction: column;
     }
 
-    .admin-button {
-        padding: 10px 16px;
+    .admin-button,
+    .compare-button {
+        padding: 10px 14px;
         font-size: 12px;
     }
 
