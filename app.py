@@ -8,21 +8,28 @@ from parser import QuoteParser
 from component_registry import ComponentRegistry
 from datetime import datetime
 
+# Data directory — outside the app root by default.
+# Override with DATA_DIR env var for custom deployments.
+_app_dir = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.environ.get('DATA_DIR', os.path.join(_app_dir, '..', 'data'))
+DATA_DIR = os.path.abspath(DATA_DIR)
+os.makedirs(os.path.join(DATA_DIR, 'uploads'), exist_ok=True)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('app.log'),
+        logging.FileHandler(os.path.join(DATA_DIR, 'app.log')),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['UPLOAD_FOLDER'] = os.path.join(DATA_DIR, 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-app.config['DATABASE'] = 'quotes.db'
+app.config['DATABASE'] = os.path.join(DATA_DIR, 'quotes.db')
 
 BASE_HREF = '/quotes/'
 
@@ -33,9 +40,6 @@ def inject_base_href():
 
 
 ALLOWED_EXTENSIONS = {'pdf'}
-
-# Ensure upload folder exists
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 
 def allowed_file(filename):
@@ -119,7 +123,7 @@ def get_db():
 def init_db():
     """Initialize database schema."""
     db = get_db()
-    with open('schema_normalized.sql', 'r') as f:
+    with open(os.path.join(_app_dir, 'schema_normalized.sql'), 'r') as f:
         db.executescript(f.read())
     db.commit()
     db.close()
