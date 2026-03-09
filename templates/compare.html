@@ -5,8 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Compare Quotes</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .comparison-item.item-match {
+            background: #e8f5e9;
+            border-left: 3px solid #4caf50;
+        }
+    </style>
 </head>
 <body>
+    {% set q1_pns = namespace(items=[]) %}
+    {% for cat, citems in quote1.categories.items() %}
+        {% for item in citems %}
+            {% if item.product_number %}{% set _ = q1_pns.items.append(item.product_number) %}{% endif %}
+        {% endfor %}
+    {% endfor %}
+    {% set q2_pns = namespace(items=[]) %}
+    {% for cat, citems in quote2.categories.items() %}
+        {% for item in citems %}
+            {% if item.product_number %}{% set _ = q2_pns.items.append(item.product_number) %}{% endif %}
+        {% endfor %}
+    {% endfor %}
+
     <div class="container">
         <div class="breadcrumb">
             <a href="/">← Back to All Quotes</a>
@@ -291,7 +310,7 @@
                         <div class="category-item-count">{{ items1|length }} item(s)</div>
 
                         {% for item in items1 %}
-                        <div class="comparison-item">
+                        <div class="comparison-item {% if item.product_number and item.product_number in q2_pns.items %}item-match{% endif %}">
                             <div class="item-qty">{{ item.quantity }}×</div>
                             <div class="item-details">
                                 <div class="item-description">{{ item.description }}</div>
@@ -336,7 +355,7 @@
                         <div class="category-item-count">{{ items2|length }} item(s)</div>
 
                         {% for item in items2 %}
-                        <div class="comparison-item">
+                        <div class="comparison-item {% if item.product_number and item.product_number in q1_pns.items %}item-match{% endif %}">
                             <div class="item-qty">{{ item.quantity }}×</div>
                             <div class="item-details">
                                 <div class="item-description">{{ item.description }}</div>

@@ -117,6 +117,73 @@ def init_db():
     db.close()
 
 
+def migrate_db():
+    """Apply schema migrations for existing databases."""
+    db = get_db()
+    try:
+        # Migration: add 'archived' to projects.status CHECK constraint
+        row = db.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='projects'"
+        ).fetchone()
+        if row and "'archived'" not in row['sql']:
+            existing = {r[1] for r in db.execute("PRAGMA table_info(projects)")}
+            cols = [c for c in ['id', 'name', 'tenant_id', 'description', 'comments',
+                                 'created_at', 'updated_at', 'status'] if c in existing]
+            col_str = ', '.join(cols)
+            db.execute("PRAGMA foreign_keys=OFF")
+            db.execute("""
+                CREATE TABLE projects_migration (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    tenant_id INTEGER NOT NULL,
+                    description TEXT,
+                    comments TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive', 'archived')),
+                    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+                    UNIQUE(tenant_id, name)
+                )
+            """)
+            db.execute(f"INSERT INTO projects_migration ({col_str}) SELECT {col_str} FROM projects")
+            db.execute("DROP TABLE projects")
+            db.execute("ALTER TABLE projects_migration RENAME TO projects")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_projects_tenant ON projects(tenant_id)")
+            db.execute("PRAGMA foreign_keys=ON")
+            db.commit()
+            logger.info("Migration: projects.status CHECK constraint updated to include 'archived'")
+
+        # Migration: add 'archived' to tenants.status CHECK constraint
+        row = db.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='tenants'"
+        ).fetchone()
+        if row and "'archived'" not in row['sql']:
+            existing = {r[1] for r in db.execute("PRAGMA table_info(tenants)")}
+            cols = [c for c in ['id', 'name', 'contact_name', 'created_at', 'updated_at', 'status']
+                    if c in existing]
+            col_str = ', '.join(cols)
+            db.execute("PRAGMA foreign_keys=OFF")
+            db.execute("""
+                CREATE TABLE tenants_migration (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    contact_name TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive', 'archived'))
+                )
+            """)
+            db.execute(f"INSERT INTO tenants_migration ({col_str}) SELECT {col_str} FROM tenants")
+            db.execute("DROP TABLE tenants")
+            db.execute("ALTER TABLE tenants_migration RENAME TO tenants")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_tenant_name ON tenants(name)")
+            db.execute("PRAGMA foreign_keys=ON")
+            db.commit()
+            logger.info("Migration: tenants.status CHECK constraint updated to include 'archived'")
+    finally:
+        db.close()
+
+
 def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_id=None, tenant_name='', project_name='', ica=''):
     """Save parsed quote data to database."""
     logger.debug(f"Saving quote: {quote_data.get('quote_id')} with {len(line_items)} items")
@@ -1004,5 +1071,7 @@ if __name__ == '__main__':
     # Initialize database if it doesn't exist
     if not os.path.exists(app.config['DATABASE']):
         init_db()
+    else:
+        migrate_db()
 
     app.run(debug=True, host='0.0.0.0', port=5001)

@@ -311,6 +311,11 @@
             font-weight: 700;
             font-size: 14px;
         }
+
+        .component-item-compact.item-match {
+            background: #e8f5e9;
+            border-left-color: #4caf50;
+        }
     </style>
 </head>
 <body>
@@ -321,6 +326,20 @@
             <h1>Quote Comparison - Split View</h1>
             <div style="width: 120px;"></div>
         </div>
+
+        <!-- Build product number sets for match highlighting -->
+        {% set q1_pns = namespace(items=[]) %}
+        {% for cat, citems in quote1.categories.items() %}
+            {% for item in citems %}
+                {% if item.product_number %}{% set _ = q1_pns.items.append(item.product_number) %}{% endif %}
+            {% endfor %}
+        {% endfor %}
+        {% set q2_pns = namespace(items=[]) %}
+        {% for cat, citems in quote2.categories.items() %}
+            {% for item in citems %}
+                {% if item.product_number %}{% set _ = q2_pns.items.append(item.product_number) %}{% endif %}
+            {% endfor %}
+        {% endfor %}
 
         <!-- Split Grid: 2x2 layout -->
         <div class="split-grid">
@@ -436,7 +455,7 @@
 
                         <div class="component-list" style="margin-top: 10px;">
                             {% for item in quote1.categories['CPU'] %}
-                            <div class="component-item-compact">
+                            <div class="component-item-compact {% if item.product_number and item.product_number in q2_pns.items %}item-match{% endif %}">
                                 <div class="component-title">
                                     <span class="component-qty">{{ item.quantity }}×</span>
                                     {{ item.description[:80] }}{% if item.description|length > 80 %}...{% endif %}
@@ -484,7 +503,7 @@
 
                         <div class="component-list" style="margin-top: 10px;">
                             {% for item in quote1.categories['Memory'] %}
-                            <div class="component-item-compact">
+                            <div class="component-item-compact {% if item.product_number and item.product_number in q2_pns.items %}item-match{% endif %}">
                                 <div class="component-title">
                                     <span class="component-qty">{{ item.quantity }}×</span>
                                     {{ item.description[:80] }}{% if item.description|length > 80 %}...{% endif %}
@@ -514,7 +533,7 @@
                             </div>
                             <div class="component-list">
                                 {% for item in quote1.categories[category] %}
-                                <div class="component-item-compact">
+                                <div class="component-item-compact {% if item.product_number and item.product_number in q2_pns.items %}item-match{% endif %}">
                                     <div class="component-title">
                                         <span class="component-qty">{{ item.quantity }}×</span>
                                         {{ item.description[:80] }}{% if item.description|length > 80 %}...{% endif %}
@@ -620,7 +639,7 @@
 
                         <div class="component-list" style="margin-top: 10px;">
                             {% for item in quote2.categories['CPU'] %}
-                            <div class="component-item-compact">
+                            <div class="component-item-compact {% if item.product_number and item.product_number in q1_pns.items %}item-match{% endif %}">
                                 <div class="component-title">
                                     <span class="component-qty">{{ item.quantity }}×</span>
                                     {{ item.description[:80] }}{% if item.description|length > 80 %}...{% endif %}
@@ -668,7 +687,7 @@
 
                         <div class="component-list" style="margin-top: 10px;">
                             {% for item in quote2.categories['Memory'] %}
-                            <div class="component-item-compact">
+                            <div class="component-item-compact {% if item.product_number and item.product_number in q1_pns.items %}item-match{% endif %}">
                                 <div class="component-title">
                                     <span class="component-qty">{{ item.quantity }}×</span>
                                     {{ item.description[:80] }}{% if item.description|length > 80 %}...{% endif %}
@@ -698,7 +717,7 @@
                             </div>
                             <div class="component-list">
                                 {% for item in quote2.categories[category] %}
-                                <div class="component-item-compact">
+                                <div class="component-item-compact {% if item.product_number and item.product_number in q1_pns.items %}item-match{% endif %}">
                                     <div class="component-title">
                                         <span class="component-qty">{{ item.quantity }}×</span>
                                         {{ item.description[:80] }}{% if item.description|length > 80 %}...{% endif %}
