@@ -21,6 +21,25 @@ class QuoteParser:
         '5512U': {'cores': 24, 'threads': 48, 'base_clock_ghz': 2.1, 'cache_mb': 45, 'tdp_watts': 185},
     }
 
+    # Known CPU specifications lookup (AMD EPYC Genoa 9004 series)
+    EPYC_SPECS_LOOKUP = {
+        '9654':  {'cores': 96, 'threads': 192, 'base_clock_ghz': 2.4,  'cache_mb': 384, 'tdp_watts': 360},
+        '9654P': {'cores': 96, 'threads': 192, 'base_clock_ghz': 2.4,  'cache_mb': 384, 'tdp_watts': 360},
+        '9554':  {'cores': 64, 'threads': 128, 'base_clock_ghz': 3.1,  'cache_mb': 256, 'tdp_watts': 360},
+        '9554P': {'cores': 64, 'threads': 128, 'base_clock_ghz': 3.1,  'cache_mb': 256, 'tdp_watts': 360},
+        '9534':  {'cores': 64, 'threads': 128, 'base_clock_ghz': 2.45, 'cache_mb': 256, 'tdp_watts': 225},
+        '9474F': {'cores': 48, 'threads': 96,  'base_clock_ghz': 3.6,  'cache_mb': 256, 'tdp_watts': 360},
+        '9454':  {'cores': 48, 'threads': 96,  'base_clock_ghz': 2.75, 'cache_mb': 256, 'tdp_watts': 290},
+        '9454P': {'cores': 48, 'threads': 96,  'base_clock_ghz': 2.75, 'cache_mb': 256, 'tdp_watts': 290},
+        '9374F': {'cores': 32, 'threads': 64,  'base_clock_ghz': 3.85, 'cache_mb': 256, 'tdp_watts': 320},
+        '9354':  {'cores': 32, 'threads': 64,  'base_clock_ghz': 3.25, 'cache_mb': 256, 'tdp_watts': 280},
+        '9354P': {'cores': 32, 'threads': 64,  'base_clock_ghz': 3.25, 'cache_mb': 256, 'tdp_watts': 280},
+        '9274F': {'cores': 24, 'threads': 48,  'base_clock_ghz': 4.05, 'cache_mb': 256, 'tdp_watts': 320},
+        '9254':  {'cores': 24, 'threads': 48,  'base_clock_ghz': 2.9,  'cache_mb': 128, 'tdp_watts': 200},
+        '9174F': {'cores': 16, 'threads': 32,  'base_clock_ghz': 4.1,  'cache_mb': 256, 'tdp_watts': 320},
+        '9124':  {'cores': 16, 'threads': 32,  'base_clock_ghz': 3.0,  'cache_mb': 64,  'tdp_watts': 200},
+    }
+
     # Category mapping patterns
     CATEGORY_PATTERNS = {
         'CPU': [
@@ -448,6 +467,8 @@ class QuoteParser:
         # Category-specific extraction
         if category == 'CPU':
             details['specs'] = self._extract_cpu_specs(description)
+            if details['specs'].get('model'):
+                details['model'] = details['specs']['model']
         elif category == 'Memory':
             details['specs'] = self._extract_memory_specs(description)
         elif category == 'Disk':
@@ -505,6 +526,18 @@ class QuoteParser:
                 lookup_specs = self.CPU_SPECS_LOOKUP[model]
                 # Only use lookup if we don't have the spec from description
                 for key, value in lookup_specs.items():
+                    if key not in specs:
+                        specs[key] = value
+
+        # AMD EPYC model extraction
+        # Matches: "AMD EPYC 9534", "EPYC 9654P", "EPYC 9374F"
+        epyc_match = re.search(r'epyc\s+(\d{4}[a-z+F]*)', description, re.I)
+        if epyc_match:
+            model = epyc_match.group(1).upper()
+            specs['model'] = model
+            specs['series'] = 'EPYC'
+            if model in self.EPYC_SPECS_LOOKUP:
+                for key, value in self.EPYC_SPECS_LOOKUP[model].items():
                     if key not in specs:
                         specs[key] = value
 
