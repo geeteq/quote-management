@@ -1290,6 +1290,59 @@ button:hover {
     margin: 0 auto;
 }
 
+.welcome-search {
+    margin-top: 36px;
+}
+
+.welcome-search-box {
+    position: relative;
+    max-width: 520px;
+    margin: 0 auto;
+}
+
+.welcome-search-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #999;
+    pointer-events: none;
+}
+
+.welcome-search-input {
+    width: 100%;
+    padding: 14px 18px 14px 46px;
+    font-size: 1rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    outline: none;
+    color: #333;
+    background: #fafafa;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    box-sizing: border-box;
+    -webkit-appearance: none;
+}
+
+.welcome-search-input:focus {
+    border-color: #667eea;
+    background: white;
+    box-shadow: 0 0 0 4px rgba(102,126,234,0.12);
+}
+
+.welcome-search-input::placeholder {
+    color: #aaa;
+}
+
+.welcome-search-hint {
+    margin: 10px 0 0 0;
+    font-size: 0.85em;
+    color: #aaa;
+}
+
+#searchResults {
+    margin-top: 24px;
+}
+
 /* Quote Cards - Mini Version */
 .quotes-grid-mini {
     display: grid;
