@@ -105,14 +105,14 @@
             <form id="uploadForm" enctype="multipart/form-data">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="tenantSelect">Tenant <span class="required">*</span></label>
-                        <select id="tenantSelect" name="tenant_id" required>
-                            <option value="">Select tenant...</option>
+                        <label for="tenantSelect">Tenant</label>
+                        <select id="tenantSelect" name="tenant_id">
+                            <option value="">— Unassigned —</option>
                         </select>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" id="projectGroup">
                         <label for="projectSelect">Project <span class="required">*</span></label>
-                        <select id="projectSelect" name="project_id" required>
+                        <select id="projectSelect" name="project_id">
                             <option value="">Select project...</option>
                         </select>
                     </div>
@@ -386,6 +386,7 @@
             document.getElementById('uploadModal').style.display = 'none';
             document.getElementById('uploadForm').reset();
             document.getElementById('uploadStatus').innerHTML = '';
+            updateProjectGroup();
         }
 
         // Load tenants for upload form
@@ -404,6 +405,21 @@
             } catch (error) {
                 console.error('Error loading tenants:', error);
             }
+            updateProjectGroup();
+        }
+
+        function updateProjectGroup() {
+            const tenantId = document.getElementById('tenantSelect').value;
+            const projectGroup = document.getElementById('projectGroup');
+            const projectSelect = document.getElementById('projectSelect');
+            if (tenantId) {
+                projectGroup.style.display = '';
+                projectSelect.required = true;
+            } else {
+                projectGroup.style.display = 'none';
+                projectSelect.required = false;
+                projectSelect.value = '';
+            }
         }
 
         // Handle tenant selection change
@@ -411,6 +427,7 @@
             const tenantId = e.target.value;
             const projectSelect = document.getElementById('projectSelect');
             projectSelect.innerHTML = '<option value="">Select project...</option>';
+            updateProjectGroup();
 
             if (!tenantId) return;
 

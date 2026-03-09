@@ -39,7 +39,7 @@
                         <th>Type</th>
                         <th>Manufacturer</th>
                         <th>Part Number</th>
-                        <th>Model</th>
+                        <th>Description</th>
                         <th>Specs</th>
                         <th>Seen</th>
                     </tr>
@@ -54,7 +54,7 @@
                         </td>
                         <td>{{ c.manufacturer or '—' }}</td>
                         <td class="comp-part-number">{{ c.part_number or '—' }}</td>
-                        <td>{{ c.model or '—' }}</td>
+                        <td>{{ c.description or '—' }}</td>
                         <td>
                             {% if c.specs %}
                                 <div class="comp-specs-cell">

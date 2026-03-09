@@ -42,6 +42,16 @@
                     </ul>
                 </div>
                 <div class="admin-menu-section">
+                    <h3 class="admin-menu-header">Quotes</h3>
+                    <ul class="admin-menu-list">
+                        <li>
+                            <a href="#" class="admin-menu-item" data-view="quotes">
+                                Quote List
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="admin-menu-section">
                     <h3 class="admin-menu-header">Components</h3>
                     <ul class="admin-menu-list">
                         <li>
@@ -87,6 +97,8 @@
                     await loadProjectsView();
                 } else if (view === 'components') {
                     await loadComponentsView();
+                } else if (view === 'quotes') {
+                    await loadQuotesView();
                 }
             });
         });
@@ -201,6 +213,36 @@
                 initComponentFilters();
             } catch (error) {
                 contentArea.innerHTML = `<div class="error">Error loading components: ${error.message}</div>`;
+            }
+        }
+
+        async function loadQuotesView() {
+            const contentArea = document.getElementById('contentArea');
+            contentArea.innerHTML = '<div class="loading">Loading quotes...</div>';
+            try {
+                const response = await fetch('/admin/quotes');
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const content = doc.querySelector('.quotes-admin-content');
+                contentArea.innerHTML = content ? content.outerHTML : html;
+            } catch (error) {
+                contentArea.innerHTML = `<div class="error">Error loading quotes: ${error.message}</div>`;
+            }
+        }
+
+        async function deleteQuote(id, quoteId) {
+            if (!confirm(`Delete quote "${quoteId}"?\n\nThis will permanently remove the quote and all its line items.`)) return;
+            try {
+                const response = await fetch(`/api/admin/quotes/${id}/delete`, { method: 'POST' });
+                const result = await response.json();
+                if (result.success) {
+                    await loadQuotesView();
+                } else {
+                    alert(`Error: ${result.error}`);
+                }
+            } catch (error) {
+                alert(`Error: ${error.message}`);
             }
         }
 

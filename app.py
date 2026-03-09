@@ -914,17 +914,57 @@ def admin_projects():
     return render_template('admin/projects_list.html', tenant_projects=tenant_projects)
 
 
+@app.route('/admin/quotes')
+def admin_quotes():
+    """List all quotes in the system."""
+    db = get_db()
+    quotes = db.execute("""
+        SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
+               total_amount, currency, tenant_name, project_name, ica, uploaded_at
+        FROM quotes
+        ORDER BY uploaded_at DESC
+    """).fetchall()
+    db.close()
+    return render_template('admin/quotes_list.html', quotes=[dict(q) for q in quotes])
+
+
+@app.route('/api/admin/quotes/<int:quote_id>/delete', methods=['POST'])
+def api_admin_quote_delete(quote_id):
+    """Delete a quote and all associated data."""
+    db = get_db()
+    try:
+        db.execute("PRAGMA foreign_keys = ON")
+        row = db.execute("SELECT pdf_path FROM quotes WHERE id = ?", (quote_id,)).fetchone()
+        if not row:
+            return jsonify({'error': 'Quote not found'}), 404
+        db.execute("DELETE FROM quotes WHERE id = ?", (quote_id,))
+        db.commit()
+        # Remove PDF file if it exists
+        if row['pdf_path'] and os.path.exists(row['pdf_path']):
+            try:
+                os.remove(row['pdf_path'])
+            except OSError:
+                pass
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+
 @app.route('/admin/components')
 def admin_components():
     """List all distinct learned components from the components table."""
     import json as _json
     db = get_db()
     rows = db.execute("""
-        SELECT component_type, manufacturer, part_number, model, specs_json,
-               COUNT(*) as seen
-        FROM components
-        GROUP BY component_type, part_number
-        ORDER BY component_type, part_number
+        SELECT c.component_type, c.manufacturer, c.part_number, c.model,
+               c.specs_json, COUNT(*) as seen,
+               MIN(li.description) as description
+        FROM components c
+        LEFT JOIN line_items li ON c.line_item_id = li.id
+        GROUP BY c.component_type, c.part_number
+        ORDER BY c.component_type, c.part_number
     """).fetchall()
     db.close()
 

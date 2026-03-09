@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quote List - Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="quotes-admin-content">
+        <div class="admin-content-header">
+            <h1>Quote List</h1>
+            <span class="admin-record-count">{{ quotes|length }} quotes</span>
+        </div>
+
+        {% if quotes %}
+        <div class="tenants-table-wrapper">
+            <table class="admin-table" id="quotesAdminTable">
+                <thead>
+                    <tr>
+                        <th>Quote ID</th>
+                        <th>Vendor</th>
+                        <th>Customer</th>
+                        <th>Date</th>
+                        <th>Expiry</th>
+                        <th>Total</th>
+                        <th>Tenant</th>
+                        <th>Project</th>
+                        <th>ICA</th>
+                        <th>Uploaded</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for q in quotes %}
+                    <tr>
+                        <td><a href="/quotes/{{ q.id }}" class="quote-id-link">{{ q.quote_id }}</a></td>
+                        <td>
+                            <span class="vendor-pill vendor-{{ q.vendor|lower }}">{{ q.vendor }}</span>
+                        </td>
+                        <td>{{ q.customer_name or '—' }}</td>
+                        <td>{{ q.quote_date or '—' }}</td>
+                        <td>{{ q.expiry_date or '—' }}</td>
+                        <td class="amount-cell">{{ q.currency }} {{ '{:,.2f}'.format(q.total_amount) if q.total_amount else '—' }}</td>
+                        <td>{{ q.tenant_name or '—' }}</td>
+                        <td>{{ q.project_name or '—' }}</td>
+                        <td>{{ q.ica or '—' }}</td>
+                        <td class="date-muted">{{ q.uploaded_at[:10] if q.uploaded_at else '—' }}</td>
+                        <td onclick="event.stopPropagation()" style="white-space:nowrap">
+                            <button class="btn-icon-delete"
+                                    onclick="deleteQuote({{ q.id }}, '{{ q.quote_id }}')"
+                                    title="Delete quote">
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M6.5 1h3a.5.5 0 0 1 .5.5v1H6v-1a.5.5 0 0 1 .5-.5ZM5 2.5v-1A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5v1h2.5a.5.5 0 0 1 0 1H14v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9h.5a.5.5 0 0 1 0-1H5ZM3 4.5v9a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-9H3Zm3 1a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm4 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Z" fill="currentColor"/>
+                                </svg>
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No quotes found.</p>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
