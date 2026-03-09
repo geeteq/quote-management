@@ -24,6 +24,18 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['DATABASE'] = 'quotes.db'
 
+# Set BASE_URL when running behind a reverse proxy with a path prefix.
+# Example: BASE_URL=/quotes  (no trailing slash)
+# Leave unset for direct access at the root.
+_base = os.environ.get('BASE_URL', '').rstrip('/')
+BASE_HREF = _base + '/'
+
+
+@app.context_processor
+def inject_base_href():
+    return {'base_href': BASE_HREF}
+
+
 ALLOWED_EXTENSIONS = {'pdf'}
 
 # Ensure upload folder exists
