@@ -125,6 +125,13 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
     cursor = db.cursor()
 
     try:
+        # Check for duplicate quote_id before inserting
+        existing = cursor.execute(
+            'SELECT id FROM quotes WHERE quote_id = ?', (quote_data.get('quote_id'),)
+        ).fetchone()
+        if existing:
+            raise ValueError(f"Quote '{quote_data.get('quote_id')}' already exists (record ID {existing[0]}). Delete it first or upload a different file.")
+
         # Insert quote (with parameterized queries for SQL injection protection)
         cursor.execute('''
             INSERT INTO quotes (quote_id, vendor, customer_name, quote_date, expiry_date,
@@ -473,6 +480,15 @@ def upload_quote():
             'quote_id': quote_db_id,
             'redirect': url_for('view_quote', quote_id=quote_db_id)
         })
+
+    except ValueError as e:
+        logger.warning(f"Upload rejected for {file.filename}: {e}")
+        if 'filepath' in locals() and os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except Exception:
+                pass
+        return jsonify({'error': str(e)}), 409
 
     except Exception as e:
         logger.error(f"Error processing upload {file.filename}: {e}", exc_info=True)
