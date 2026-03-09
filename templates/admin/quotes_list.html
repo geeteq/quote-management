@@ -14,6 +14,12 @@
         </div>
 
         {% if quotes %}
+        <div class="components-toolbar">
+            <input type="search" id="quotesSearch" class="admin-search-input"
+                   placeholder="Search by quote ID, vendor, customer, tenant, project, ICA…">
+            <span class="components-summary-stat" id="quotesSearchCount"></span>
+        </div>
+
         <div class="components-table-wrapper">
             <table class="components-table" id="quotesAdminTable">
                 <thead>

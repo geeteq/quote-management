@@ -226,9 +226,39 @@
                 const doc = parser.parseFromString(html, 'text/html');
                 const content = doc.querySelector('.quotes-admin-content');
                 contentArea.innerHTML = content ? content.outerHTML : html;
+                initQuotesSearch();
             } catch (error) {
                 contentArea.innerHTML = `<div class="error">Error loading quotes: ${error.message}</div>`;
             }
+        }
+
+        function initQuotesSearch() {
+            const input = document.getElementById('quotesSearch');
+            const countEl = document.getElementById('quotesSearchCount');
+            if (!input) return;
+
+            const rows = Array.from(document.querySelectorAll('#quotesAdminTable tbody tr'));
+            const total = rows.length;
+
+            function updateCount(visible) {
+                countEl.textContent = visible < total
+                    ? `${visible} of ${total} quotes`
+                    : `${total} quotes`;
+            }
+            updateCount(total);
+
+            input.addEventListener('input', () => {
+                const q = input.value.trim().toLowerCase();
+                let visible = 0;
+                rows.forEach(row => {
+                    const match = !q || row.textContent.toLowerCase().includes(q);
+                    row.style.display = match ? '' : 'none';
+                    if (match) visible++;
+                });
+                updateCount(visible);
+            });
+
+            input.focus();
         }
 
         async function deleteQuote(id, quoteId) {

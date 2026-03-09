@@ -2764,6 +2764,27 @@ button:hover {
     box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.15);
 }
 
+.admin-search-input {
+    flex: 1;
+    max-width: 420px;
+    padding: 7px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #333;
+    background: white;
+}
+
+.admin-search-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.15);
+}
+
+.admin-search-input::placeholder {
+    color: #9ca3af;
+}
+
 .components-summary-stat {
     font-size: 13px;
     color: #888;
