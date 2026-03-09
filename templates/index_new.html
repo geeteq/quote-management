@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <base href="/">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quote Management System</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="static/style.css">
 </head>
 <body>
     <!-- Top Actions (Compare + Admin) -->
@@ -16,7 +17,7 @@
             Compare
             <span class="compare-count" id="compareCount" style="display:none">0</span>
         </button>
-        <a href="/admin" class="admin-button" title="Admin Dashboard">
+        <a href="admin" class="admin-button" title="Admin Dashboard">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M10 2C5.58 2 2 5.58 2 10C2 14.42 5.58 18 10 18C14.42 18 18 14.42 18 10C18 5.58 14.42 2 10 2ZM10 4C11.1 4 12 4.9 12 6C12 7.1 11.1 8 10 8C8.9 8 8 7.1 8 6C8 4.9 8.9 4 10 4ZM10 16C8 16 6.3 14.9 5.4 13.2C5.5 11.4 9 10.4 10 10.4C11 10.4 14.5 11.4 14.6 13.2C13.7 14.9 12 16 10 16Z" fill="currentColor"/>
             </svg>
@@ -64,7 +65,7 @@
             </nav>
             <!-- Sidebar Footer -->
             <div class="nav-sidebar-footer">
-                <a href="/admin">
+                <a href="admin">
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M10 2C5.58 2 2 5.58 2 10C2 14.42 5.58 18 10 18C14.42 18 18 14.42 18 10C18 5.58 14.42 2 10 2ZM10 4C11.1 4 12 4.9 12 6C12 7.1 11.1 8 10 8C8.9 8 8 7.1 8 6C8 4.9 8.9 4 10 4ZM10 16C8 16 6.3 14.9 5.4 13.2C5.5 11.4 9 10.4 10 10.4C11 10.4 14.5 11.4 14.6 13.2C13.7 14.9 12 16 10 16Z" fill="currentColor"/>
                     </svg>
@@ -189,7 +190,7 @@
         function compareSelected() {
             if (selectedQuotes.size !== 2) return;
             const ids = Array.from(selectedQuotes).join(',');
-            window.location.href = `/compare?ids=${ids}`;
+            window.location.href = `compare?ids=${ids}`;
         }
 
         function clearSelection() {
@@ -206,7 +207,7 @@
         // Load navigation hierarchy
         async function loadNavigationTree() {
             try {
-                const response = await fetch(`/api/navigation/hierarchy`);
+                const response = await fetch(`api/navigation/hierarchy`);
                 navigationData = await response.json();
                 renderNavigationTree();
                 updateUnassignedCount();
@@ -295,7 +296,7 @@
             content.innerHTML = '<div class="loading">Loading quotes...</div>';
 
             try {
-                const response = await fetch(`/api/projects/${projectId}/quotes`);
+                const response = await fetch(`api/projects/${projectId}/quotes`);
                 const quotes = await response.json();
                 renderQuotes(quotes);
             } catch (error) {
@@ -316,7 +317,7 @@
             content.innerHTML = '<div class="loading">Loading quotes...</div>';
 
             try {
-                const response = await fetch(`/api/quotes/unassigned`);
+                const response = await fetch(`api/quotes/unassigned`);
                 const quotes = await response.json();
                 renderQuotes(quotes);
             } catch (error) {
@@ -327,7 +328,7 @@
         // Update unassigned count
         async function updateUnassignedCount() {
             try {
-                const response = await fetch(`/api/quotes/unassigned`);
+                const response = await fetch(`api/quotes/unassigned`);
                 const quotes = await response.json();
                 document.getElementById('unassignedCount').textContent = quotes.length;
             } catch (error) {
@@ -350,7 +351,7 @@
 
             const html = quotes.map(quote => `
                 <div class="quote-card-mini ${selectedQuotes.has(quote.id) ? 'selected' : ''}"
-                     onclick="window.location.href='/quote/${quote.id}'"
+                     onclick="window.location.href='quote/${quote.id}'">
                     <div class="quote-card-header">
                         <div class="vendor-badge ${quote.vendor.toLowerCase()}">${quote.vendor}</div>
                         <div style="display:flex;align-items:center;gap:4px;">
@@ -404,7 +405,7 @@
         // Load tenants for upload form
         async function loadTenantsForUpload() {
             try {
-                const response = await fetch(`/api/admin/tenants`);
+                const response = await fetch(`api/admin/tenants`);
                 const tenants = await response.json();
 
                 const select = document.getElementById('tenantSelect');
@@ -461,7 +462,7 @@
 
         async function getAllQuotes() {
             if (!allQuotesCache) {
-                const response = await fetch(`/api/quotes`);
+                const response = await fetch(`api/quotes`);
                 allQuotesCache = await response.json();
             }
             return allQuotesCache;
@@ -520,7 +521,7 @@
                 } else {
                     const html = results.map(quote => `
                         <div class="quote-card-mini"
-                             onclick="window.location.href='/quote/${quote.id}'"
+                             onclick="window.location.href='quote/${quote.id}'">
                             <div class="quote-card-header">
                                 <div class="vendor-badge ${(quote.vendor||'').toLowerCase()}">${quote.vendor||''}</div>
                                 <div class="quote-id">${quote.quote_id}</div>
@@ -554,7 +555,7 @@
             statusDiv.innerHTML = '<div class="loading">Uploading and parsing PDF...</div>';
 
             try {
-                const response = await fetch(`/upload`, {
+                const response = await fetch(`upload`, {
                     method: 'POST',
                     body: formData
                 });

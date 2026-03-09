@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <base href="/">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ tenant.name }} - Projects</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="static/style.css">
 </head>
 <body>
     <div class="tenant-projects-content">
@@ -24,7 +25,7 @@
                     </svg>
                     Upload Quote
                 </button>
-                <a href="/admin/projects/new?tenant_id={{ tenant.id }}" class="btn-primary">+ Create New Project</a>
+                <a href="admin/projects/new?tenant_id={{ tenant.id }}" class="btn-primary">+ Create New Project</a>
             </div>
         </div>
 
@@ -165,7 +166,7 @@
             statusDiv.innerHTML = '<div class="loading">Uploading and parsing PDF...</div>';
 
             try {
-                const response = await fetch(`/upload`, {
+                const response = await fetch(`upload`, {
                     method: 'POST',
                     body: formData
                 });
