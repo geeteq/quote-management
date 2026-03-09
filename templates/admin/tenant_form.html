@@ -71,7 +71,7 @@
                 if (result.success) {
                     statusDiv.innerHTML = '<div class="success">Tenant created successfully!</div>';
                     setTimeout(() => {
-                        window.location.href = `admin`;
+                        window.location.href = BASE + '/admin';
                     }, 1000);
                 } else {
                     statusDiv.innerHTML = `<div class="error">Error: ${result.error}</div>`;

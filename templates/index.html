@@ -111,6 +111,7 @@
     </div>
 
     <script>
+        const BASE = document.querySelector('base').getAttribute('href').replace(/\/$/, '');
         // File upload functionality
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -132,7 +133,7 @@
             statusDiv.innerHTML = '<div class="loading">Parsing PDF...</div>';
 
             try {
-                const response = await fetch(`upload`, {
+                const response = await fetch(`${BASE}/upload`, {
                     method: 'POST',
                     body: formData
                 });
@@ -211,7 +212,7 @@
             if (selectedQuotes.size !== 2) return;
 
             const ids = Array.from(selectedQuotes).sort((a, b) => a - b);
-            window.location.href = `compare?ids=${ids.join(',')}`;
+            window.location.href = BASE + `/compare?ids=${ids.join(",")}`;
         }
     </script>
 </body>
