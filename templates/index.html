@@ -4,12 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quote Management System</title>
-    <link rel="stylesheet" href="{{ base_url }}/static/style.css">
-    <script>const BASE_URL = "{{ base_url }}";</script>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <!-- Admin Button (Top Right) -->
-    <a href="{{ base_url }}/admin" class="admin-button" title="Admin Dashboard">
+    <a href="/admin" class="admin-button" title="Admin Dashboard">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M10 2C5.58 2 2 5.58 2 10C2 14.42 5.58 18 10 18C14.42 18 18 14.42 18 10C18 5.58 14.42 2 10 2ZM10 4C11.1 4 12 4.9 12 6C12 7.1 11.1 8 10 8C8.9 8 8 7.1 8 6C8 4.9 8.9 4 10 4ZM10 16C8 16 6.3 14.9 5.4 13.2C5.5 11.4 9 10.4 10 10.4C11 10.4 14.5 11.4 14.6 13.2C13.7 14.9 12 16 10 16Z" fill="currentColor"/>
         </svg>
@@ -70,7 +69,7 @@
                                onchange="handleCompareSelection(this)">
                         <label>Compare</label>
                     </div>
-                    <div class="quote-card-content" onclick="window.location.href='{{ base_url }}/quote/{{ quote.id }}'">
+                    <div class="quote-card-content" onclick="window.location.href='/quote/{{ quote.id }}'">
                         <div class="quote-header">
                             <div class="vendor-badge {{ quote.vendor|lower }}">{{ quote.vendor }}</div>
                             <div class="quote-id">{{ quote.quote_id }}</div>
@@ -132,7 +131,7 @@
             statusDiv.innerHTML = '<div class="loading">Parsing PDF...</div>';
 
             try {
-                const response = await fetch(`${BASE_URL}/upload`, {
+                const response = await fetch(`/upload`, {
                     method: 'POST',
                     body: formData
                 });

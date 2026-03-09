@@ -4,17 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Project - Admin</title>
-    <link rel="stylesheet" href="{{ base_url }}/static/style.css">
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="admin-form-page">
         <div class="admin-form-container">
             <div class="admin-form-header">
                 <h1>Edit Project</h1>
-                <a href="{{ base_url }}/admin" class="back-link">← Back to Admin</a>
+                <a href="/admin" class="back-link">← Back to Admin</a>
             </div>
 
-            <form method="POST" action="{{ base_url }}/admin/projects/{{ project.id }}/update" class="admin-form">
+            <form method="POST" action="/admin/projects/{{ project.id }}/update" class="admin-form">
                 <div class="form-group">
                     <label for="projectName">Project Name <span class="required">*</span></label>
                     <input
@@ -37,7 +37,7 @@
 
                 <div class="form-actions">
                     <button type="submit" class="btn-primary">Save</button>
-                    <a href="{{ base_url }}/admin" class="btn-secondary">Discard</a>
+                    <a href="/admin" class="btn-secondary">Discard</a>
                 </div>
             </form>
         </div>

@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ tenant.name }} - Projects</title>
-    <link rel="stylesheet" href="{{ base_url }}/static/style.css">
-    <script>const BASE_URL = "{{ base_url }}";</script>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="tenant-projects-content">
@@ -25,7 +24,7 @@
                     </svg>
                     Upload Quote
                 </button>
-                <a href="{{ base_url }}/admin/projects/new?tenant_id={{ tenant.id }}" class="btn-primary">+ Create New Project</a>
+                <a href="/admin/projects/new?tenant_id={{ tenant.id }}" class="btn-primary">+ Create New Project</a>
             </div>
         </div>
 
@@ -51,7 +50,7 @@
                 {% if project.quotes %}
                 <div class="quotes-cards-container">
                     {% for quote in project.quotes %}
-                    <div class="quote-card-standard" onclick="window.open('{{ base_url }}/quote/{{ quote.id }}', '_blank')">
+                    <div class="quote-card-standard" onclick="window.open('/quote/{{ quote.id }}', '_blank')">
                         <div class="quote-card-header">
                             <div class="vendor-badge {{ quote.vendor.lower() }}">{{ quote.vendor }}</div>
                             <div class="quote-id">{{ quote.quote_id }}</div>
@@ -166,7 +165,7 @@
             statusDiv.innerHTML = '<div class="loading">Uploading and parsing PDF...</div>';
 
             try {
-                const response = await fetch(`${BASE_URL}/upload`, {
+                const response = await fetch(`/upload`, {
                     method: 'POST',
                     body: formData
                 });

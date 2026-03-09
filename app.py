@@ -4,7 +4,6 @@ import os
 import logging
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from werkzeug.utils import secure_filename
-from werkzeug.middleware.proxy_fix import ProxyFix
 from parser import QuoteParser
 from component_registry import ComponentRegistry
 from datetime import datetime
@@ -20,25 +19,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# BASE_URL: set this env var when running behind a reverse proxy with a path prefix.
-# Example: BASE_URL=/quotes  →  app is reachable at https://host/quotes/
-# Leave unset (or empty) for direct access at the root.
-BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
-
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['DATABASE'] = 'quotes.db'
-app.config['APPLICATION_ROOT'] = BASE_URL or '/'
-
-# Trust proxy headers (X-Forwarded-For, X-Forwarded-Proto, X-Forwarded-Host, X-Forwarded-Prefix)
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
-
-
-@app.context_processor
-def inject_base_url():
-    """Inject base_url into all templates for use in HTML and JS."""
-    return {'base_url': BASE_URL}
 
 ALLOWED_EXTENSIONS = {'pdf'}
 

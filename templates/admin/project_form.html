@@ -4,15 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Add Project - Admin</title>
-    <link rel="stylesheet" href="{{ base_url }}/static/style.css">
-    <script>const BASE_URL = "{{ base_url }}";</script>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="admin-form-page">
         <div class="admin-form-container">
             <div class="admin-form-header">
                 <h1>Add New Project</h1>
-                <a href="{{ base_url }}/admin" class="back-link">← Back to Admin</a>
+                <a href="/admin" class="back-link">← Back to Admin</a>
             </div>
 
             <form id="projectForm" class="admin-form">
@@ -60,7 +59,7 @@
 
                 <div class="form-actions">
                     <button type="submit" class="btn-primary">Save Project</button>
-                    <a href="{{ base_url }}/admin" class="btn-secondary">Cancel</a>
+                    <a href="/admin" class="btn-secondary">Cancel</a>
                 </div>
             </form>
         </div>
@@ -88,7 +87,7 @@
             statusDiv.innerHTML = '<div class="loading">Creating project...</div>';
 
             try {
-                const response = await fetch(`${BASE_URL}/admin/projects/create`, {
+                const response = await fetch(`/admin/projects/create`, {
                     method: 'POST',
                     body: formData
                 });
@@ -98,7 +97,7 @@
                 if (result.success) {
                     statusDiv.innerHTML = '<div class="success">Project created successfully!</div>';
                     setTimeout(() => {
-                        window.location.href = `${BASE_URL}/admin`;
+                        window.location.href = `/admin`;
                     }, 1000);
                 } else {
                     statusDiv.innerHTML = `<div class="error">Error: ${result.error}</div>`;
