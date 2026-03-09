@@ -2106,6 +2106,21 @@ button:hover {
     margin-bottom: 12px;
 }
 
+.project-card-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-icon-edit--sm {
+    padding: 4px 7px;
+    font-size: 12px;
+}
+
+.btn-icon-edit--sm svg {
+    display: block;
+}
+
 .project-card-icon {
     font-size: 2em;
 }

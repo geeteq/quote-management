@@ -790,7 +790,7 @@ def admin_projects():
 
         # Get projects for this tenant
         projects = db.execute('''
-            SELECT p.id, p.name, p.description, p.status, p.created_at,
+            SELECT p.id, p.name, p.description, p.comments, p.status, p.created_at,
                    COUNT(q.id) as quote_count
             FROM projects p
             LEFT JOIN quotes q ON q.project_id = p.id
@@ -919,6 +919,45 @@ def admin_project_create():
         return jsonify({'error': str(e)}), 500
     finally:
         db.close()
+
+
+@app.route('/admin/projects/<int:project_id>/edit')
+def admin_project_edit(project_id):
+    """Show edit form for a project."""
+    db = get_db()
+    project = db.execute(
+        'SELECT id, name, comments, status FROM projects WHERE id = ?', (project_id,)
+    ).fetchone()
+    db.close()
+    if not project:
+        return "Project not found", 404
+    return render_template('admin/project_edit.html', project=dict(project))
+
+
+@app.route('/admin/projects/<int:project_id>/update', methods=['POST'])
+def admin_project_update(project_id):
+    """Save project edits and redirect to admin."""
+    project_name = request.form.get('project_name', '').strip()
+    comments = request.form.get('project_comments', '').strip()
+
+    if not project_name:
+        return "Project name is required", 400
+
+    db = get_db()
+    try:
+        db.execute('''
+            UPDATE projects
+            SET name = ?, comments = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (project_name, comments or None, project_id))
+        db.commit()
+        logger.info(f"Updated project {project_id}: name={project_name}")
+    except sqlite3.IntegrityError:
+        return "A project with that name already exists for this tenant", 400
+    finally:
+        db.close()
+
+    return redirect(url_for('admin_dashboard'))
 
 
 if __name__ == '__main__':

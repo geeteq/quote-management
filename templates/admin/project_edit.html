@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Project - Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="admin-form-page">
+        <div class="admin-form-container">
+            <div class="admin-form-header">
+                <h1>Edit Project</h1>
+                <a href="/admin" class="back-link">← Back to Admin</a>
+            </div>
+
+            <form method="POST" action="/admin/projects/{{ project.id }}/update" class="admin-form">
+                <div class="form-group">
+                    <label for="projectName">Project Name <span class="required">*</span></label>
+                    <input
+                        type="text"
+                        id="projectName"
+                        name="project_name"
+                        value="{{ project.name }}"
+                        required
+                        autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label for="projectComments">Comments</label>
+                    <textarea
+                        id="projectComments"
+                        name="project_comments"
+                        rows="5"
+                        placeholder="Enter any notes or comments about this project">{{ project.comments or '' }}</textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Save</button>
+                    <a href="/admin" class="btn-secondary">Discard</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

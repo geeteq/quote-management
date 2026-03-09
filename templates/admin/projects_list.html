@@ -30,7 +30,14 @@
                     <div class="project-card" onclick="window.parent.loadProjectQuotes({{ project.id }}, '{{ project.name }}', {{ tenant.id }}, '{{ tenant.name }}')">
                         <div class="project-card-header">
                             <div class="project-card-icon">📁</div>
-                            <span class="status-badge status-{{ project.status }}">{{ project.status }}</span>
+                            <div class="project-card-header-right">
+                                <span class="status-badge status-{{ project.status }}">{{ project.status }}</span>
+                                <a href="/admin/projects/{{ project.id }}/edit" class="btn-icon-edit btn-icon-edit--sm" onclick="event.stopPropagation()" title="Edit project">
+                                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 2.474L4.86 12.527l-3.215.672.672-3.215 8.696-8.557ZM13.25 2.75a.25.25 0 0 0-.354 0L3.86 11.473l-.25 1.216 1.216-.25 9.036-9.036a.25.25 0 0 0 0-.353l-.612-.6Z" fill="currentColor"/>
+                                    </svg>
+                                </a>
+                            </div>
                         </div>
                         <h3>{{ project.name }}</h3>
                         {% if project.description %}

@@ -326,6 +326,7 @@ CREATE TABLE IF NOT EXISTS projects (
     name TEXT NOT NULL,
     tenant_id INTEGER NOT NULL,
     description TEXT,
+    comments TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive', 'archived')),
