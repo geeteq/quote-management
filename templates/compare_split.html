@@ -354,7 +354,7 @@
                     <span class="section-type">Original PDF</span>
                 </div>
                 <iframe
-                    src="{{ url_for('serve_pdf', quote_id=quote1.quote.id) }}"
+                    src="pdf/{{ quote1.quote.id }}"
                     class="pdf-frame"
                     title="Quote 1 PDF">
                 </iframe>
@@ -370,7 +370,7 @@
                     <span class="section-type">Original PDF</span>
                 </div>
                 <iframe
-                    src="{{ url_for('serve_pdf', quote_id=quote2.quote.id) }}"
+                    src="pdf/{{ quote2.quote.id }}"
                     class="pdf-frame"
                     title="Quote 2 PDF">
                 </iframe>

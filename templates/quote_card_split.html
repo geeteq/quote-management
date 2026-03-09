@@ -449,7 +449,7 @@
                     <span class="section-type">Vendor Document</span>
                 </div>
                 <iframe
-                    src="{{ url_for('serve_pdf', quote_id=data.quote.id) }}"
+                    src="pdf/{{ data.quote.id }}"
                     class="pdf-frame"
                     title="Quote PDF">
                 </iframe>

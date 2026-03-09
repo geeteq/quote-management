@@ -606,15 +606,18 @@ def api_quote(quote_id):
 @app.route('/pdf/<int:quote_id>')
 def serve_pdf(quote_id):
     """Serve PDF file for a quote."""
+    from flask import send_file
     db = get_db()
     quote = db.execute('SELECT pdf_path FROM quotes WHERE id = ?', (quote_id,)).fetchone()
     db.close()
-
     if not quote or not quote['pdf_path']:
         return "PDF not found", 404
-
-    from flask import send_file
-    return send_file(quote['pdf_path'], mimetype='application/pdf')
+    pdf_path = quote['pdf_path']
+    if not os.path.isabs(pdf_path):
+        pdf_path = os.path.join(_app_dir, pdf_path)
+    if not os.path.exists(pdf_path):
+        return "PDF file not found on disk", 404
+    return send_file(pdf_path, mimetype='application/pdf')
 
 
 @app.route('/compare')
