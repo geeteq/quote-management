@@ -1271,6 +1271,8 @@ button:hover {
     cursor: pointer;
     transition: all 0.3s ease;
     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
 }
 
 .quote-card-mini:hover {
@@ -1303,7 +1305,7 @@ button:hover {
 }
 
 .quote-card-mini .quote-footer {
-    margin-top: 15px;
+    margin-top: auto;
     padding-top: 15px;
     border-top: 1px solid #f0f0f0;
     display: flex;
