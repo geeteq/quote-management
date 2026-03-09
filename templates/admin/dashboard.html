@@ -205,14 +205,12 @@
         }
 
         function initComponentFilters() {
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    const type = btn.dataset.type;
-                    document.querySelectorAll('#componentsTable tbody tr').forEach(row => {
-                        row.classList.toggle('hidden-row', type !== 'all' && row.dataset.type !== type);
-                    });
+            const select = document.getElementById('typeFilter');
+            if (!select) return;
+            select.addEventListener('change', () => {
+                const type = select.value;
+                document.querySelectorAll('#componentsTable tbody tr').forEach(row => {
+                    row.style.display = (type === 'all' || row.dataset.type === type) ? '' : 'none';
                 });
             });
         }
