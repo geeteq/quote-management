@@ -41,6 +41,16 @@
                         </li>
                     </ul>
                 </div>
+                <div class="admin-menu-section">
+                    <h3 class="admin-menu-header">Components</h3>
+                    <ul class="admin-menu-list">
+                        <li>
+                            <a href="#" class="admin-menu-item" data-view="components">
+                                Learned Components
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </nav>
         </aside>
 
@@ -75,6 +85,8 @@
                     await loadArchivedTenantsView();
                 } else if (view === 'projects') {
                     await loadProjectsView();
+                } else if (view === 'components') {
+                    await loadComponentsView();
                 }
             });
         });
@@ -174,6 +186,35 @@
             } catch (error) {
                 contentArea.innerHTML = `<div class="error">Error loading tenant projects: ${error.message}</div>`;
             }
+        }
+
+        async function loadComponentsView() {
+            const contentArea = document.getElementById('contentArea');
+            contentArea.innerHTML = '<div class="loading">Loading components...</div>';
+            try {
+                const response = await fetch('/admin/components');
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const content = doc.querySelector('.components-content');
+                contentArea.innerHTML = content ? content.outerHTML : html;
+                initComponentFilters();
+            } catch (error) {
+                contentArea.innerHTML = `<div class="error">Error loading components: ${error.message}</div>`;
+            }
+        }
+
+        function initComponentFilters() {
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    const type = btn.dataset.type;
+                    document.querySelectorAll('#componentsTable tbody tr').forEach(row => {
+                        row.classList.toggle('hidden-row', type !== 'all' && row.dataset.type !== type);
+                    });
+                });
+            });
         }
 
         async function loadProjectQuotes(projectId, projectName, tenantId, tenantName) {

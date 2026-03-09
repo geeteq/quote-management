@@ -914,6 +914,32 @@ def admin_projects():
     return render_template('admin/projects_list.html', tenant_projects=tenant_projects)
 
 
+@app.route('/admin/components')
+def admin_components():
+    """List all distinct learned components from the components table."""
+    import json as _json
+    db = get_db()
+    rows = db.execute("""
+        SELECT component_type, manufacturer, part_number, model, specs_json,
+               COUNT(*) as seen
+        FROM components
+        GROUP BY component_type, part_number
+        ORDER BY component_type, part_number
+    """).fetchall()
+    db.close()
+
+    components = []
+    for row in rows:
+        d = dict(row)
+        try:
+            d['specs'] = _json.loads(row['specs_json']) if row['specs_json'] else {}
+        except Exception:
+            d['specs'] = {}
+        components.append(d)
+
+    return render_template('admin/components_list.html', components=components)
+
+
 @app.route('/admin/tenants/<int:tenant_id>/projects')
 def admin_tenant_projects(tenant_id):
     """Show projects for a specific tenant with their quotes."""
