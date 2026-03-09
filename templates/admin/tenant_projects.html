@@ -140,6 +140,7 @@
     </div>
 
     <script>
+        const BASE = document.querySelector('base').getAttribute('href').replace(/\/$/, '');
         function showUploadQuoteModal() {
             document.getElementById('uploadQuoteModal').style.display = 'flex';
         }
@@ -166,7 +167,7 @@
             statusDiv.innerHTML = '<div class="loading">Uploading and parsing PDF...</div>';
 
             try {
-                const response = await fetch(`upload`, {
+                const response = await fetch(`${BASE}/upload`, {
                     method: 'POST',
                     body: formData
                 });

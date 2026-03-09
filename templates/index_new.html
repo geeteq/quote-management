@@ -148,6 +148,7 @@
     </div>
 
     <script>
+        const BASE = document.querySelector('base').getAttribute('href').replace(/\/$/, '');
         let navigationData = [];
         let selectedProjectId = null;
         const selectedQuotes = new Set();
@@ -190,7 +191,7 @@
         function compareSelected() {
             if (selectedQuotes.size !== 2) return;
             const ids = Array.from(selectedQuotes).join(',');
-            window.location.href = `compare?ids=${ids}`;
+            window.location.href = `${BASE}/compare?ids=${ids}`;
         }
 
         function clearSelection() {
@@ -207,7 +208,7 @@
         // Load navigation hierarchy
         async function loadNavigationTree() {
             try {
-                const response = await fetch(`api/navigation/hierarchy`);
+                const response = await fetch(`${BASE}/api/navigation/hierarchy`);
                 navigationData = await response.json();
                 renderNavigationTree();
                 updateUnassignedCount();
@@ -296,7 +297,7 @@
             content.innerHTML = '<div class="loading">Loading quotes...</div>';
 
             try {
-                const response = await fetch(`api/projects/${projectId}/quotes`);
+                const response = await fetch(`${BASE}/api/projects/${projectId}/quotes`);
                 const quotes = await response.json();
                 renderQuotes(quotes);
             } catch (error) {
@@ -317,7 +318,7 @@
             content.innerHTML = '<div class="loading">Loading quotes...</div>';
 
             try {
-                const response = await fetch(`api/quotes/unassigned`);
+                const response = await fetch(`${BASE}/api/quotes/unassigned`);
                 const quotes = await response.json();
                 renderQuotes(quotes);
             } catch (error) {
@@ -328,7 +329,7 @@
         // Update unassigned count
         async function updateUnassignedCount() {
             try {
-                const response = await fetch(`api/quotes/unassigned`);
+                const response = await fetch(`${BASE}/api/quotes/unassigned`);
                 const quotes = await response.json();
                 document.getElementById('unassignedCount').textContent = quotes.length;
             } catch (error) {
@@ -351,7 +352,7 @@
 
             const html = quotes.map(quote => `
                 <div class="quote-card-mini ${selectedQuotes.has(quote.id) ? 'selected' : ''}"
-                     onclick="window.location.href='quote/${quote.id}'">
+                     onclick="window.location.href=BASE + '/quote/${quote.id}'">
                     <div class="quote-card-header">
                         <div class="vendor-badge ${quote.vendor.toLowerCase()}">${quote.vendor}</div>
                         <div style="display:flex;align-items:center;gap:4px;">
@@ -405,7 +406,7 @@
         // Load tenants for upload form
         async function loadTenantsForUpload() {
             try {
-                const response = await fetch(`api/admin/tenants`);
+                const response = await fetch(`${BASE}/api/admin/tenants`);
                 const tenants = await response.json();
 
                 const select = document.getElementById('tenantSelect');
@@ -462,7 +463,7 @@
 
         async function getAllQuotes() {
             if (!allQuotesCache) {
-                const response = await fetch(`api/quotes`);
+                const response = await fetch(`${BASE}/api/quotes`);
                 allQuotesCache = await response.json();
             }
             return allQuotesCache;
@@ -521,7 +522,7 @@
                 } else {
                     const html = results.map(quote => `
                         <div class="quote-card-mini"
-                             onclick="window.location.href='quote/${quote.id}'">
+                             onclick="window.location.href=BASE + '/quote/${quote.id}'">
                             <div class="quote-card-header">
                                 <div class="vendor-badge ${(quote.vendor||'').toLowerCase()}">${quote.vendor||''}</div>
                                 <div class="quote-id">${quote.quote_id}</div>
@@ -555,7 +556,7 @@
             statusDiv.innerHTML = '<div class="loading">Uploading and parsing PDF...</div>';
 
             try {
-                const response = await fetch(`upload`, {
+                const response = await fetch(`${BASE}/upload`, {
                     method: 'POST',
                     body: formData
                 });

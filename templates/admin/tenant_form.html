@@ -38,6 +38,7 @@
     </div>
 
     <script>
+        const BASE = document.querySelector('base').getAttribute('href').replace(/\/$/, '');
         document.getElementById('tenantForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -60,7 +61,7 @@
                 const formData = new FormData();
                 formData.append('tenant_name', tenantName);
 
-                const response = await fetch(`admin/tenants/create`, {
+                const response = await fetch(`${BASE}/admin/tenants/create`, {
                     method: 'POST',
                     body: formData
                 });

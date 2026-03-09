@@ -67,6 +67,7 @@
     </div>
 
     <script>
+        const BASE = document.querySelector('base').getAttribute('href').replace(/\/$/, '');
         document.getElementById('projectForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -88,7 +89,7 @@
             statusDiv.innerHTML = '<div class="loading">Creating project...</div>';
 
             try {
-                const response = await fetch(`admin/projects/create`, {
+                const response = await fetch(`${BASE}/admin/projects/create`, {
                     method: 'POST',
                     body: formData
                 });
