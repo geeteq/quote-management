@@ -1830,6 +1830,28 @@ button:hover {
     color: white;
 }
 
+.btn-icon-archive {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    background: #fff8f0;
+    color: #c27c0e;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    white-space: nowrap;
+    font-family: inherit;
+}
+
+.btn-icon-archive:hover {
+    background: #c27c0e;
+    color: white;
+}
+
 .tenant-name {
     font-weight: 600;
     color: #333;

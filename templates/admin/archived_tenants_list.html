@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archived Tenants - Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="archived-tenants-content">
+        <div class="admin-content-header">
+            <h1>Archived Tenants</h1>
+        </div>
+
+        {% if tenants %}
+        <div class="tenants-table-wrapper">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Tenant Name</th>
+                        <th>Contact</th>
+                        <th>Archived At</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tenant in tenants %}
+                    <tr>
+                        <td>{{ tenant.id }}</td>
+                        <td class="tenant-name">{{ tenant.name }}</td>
+                        <td>{{ tenant.contact_name or '—' }}</td>
+                        <td>{{ tenant.updated_at }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No archived tenants.</p>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

@@ -595,15 +595,30 @@ def admin_dashboard():
 
 @app.route('/admin/tenants')
 def admin_tenants():
-    """List all tenants."""
+    """List all active tenants."""
     db = get_db()
     tenants = db.execute('''
         SELECT id, name, contact_name, created_at, updated_at, status
         FROM tenants
+        WHERE status != 'archived'
         ORDER BY name
     ''').fetchall()
     db.close()
     return render_template('admin/tenants_list.html', tenants=[dict(t) for t in tenants])
+
+
+@app.route('/admin/tenants/archived')
+def admin_tenants_archived():
+    """List all archived tenants."""
+    db = get_db()
+    tenants = db.execute('''
+        SELECT id, name, contact_name, created_at, updated_at, status
+        FROM tenants
+        WHERE status = 'archived'
+        ORDER BY name
+    ''').fetchall()
+    db.close()
+    return render_template('admin/archived_tenants_list.html', tenants=[dict(t) for t in tenants])
 
 
 @app.route('/admin/tenants/<int:tenant_id>/edit')
@@ -645,6 +660,30 @@ def admin_tenant_update(tenant_id):
     return redirect(url_for('admin_dashboard'))
 
 
+@app.route('/api/admin/tenants/<int:tenant_id>/archive', methods=['POST'])
+def api_admin_tenant_archive(tenant_id):
+    """Archive a tenant and all its projects."""
+    db = get_db()
+    try:
+        db.execute(
+            "UPDATE projects SET status = 'archived', updated_at = CURRENT_TIMESTAMP WHERE tenant_id = ?",
+            (tenant_id,)
+        )
+        db.execute(
+            "UPDATE tenants SET status = 'archived', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (tenant_id,)
+        )
+        db.commit()
+        logger.info(f"Archived tenant {tenant_id} and all its projects")
+        return jsonify({'success': True})
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error archiving tenant {tenant_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+
 @app.route('/admin/tenants/new')
 def admin_tenant_new():
     """Show form to create new tenant."""
@@ -681,11 +720,12 @@ def admin_tenant_create():
 
 @app.route('/api/admin/tenants')
 def api_admin_tenants():
-    """API endpoint for tenants list."""
+    """API endpoint for active tenants list."""
     db = get_db()
     tenants = db.execute('''
         SELECT id, name, created_at, updated_at, status
         FROM tenants
+        WHERE status != 'archived'
         ORDER BY name
     ''').fetchall()
     db.close()
@@ -729,7 +769,7 @@ def api_navigation_hierarchy():
                 COUNT(q.id) as quote_count
             FROM projects p
             LEFT JOIN quotes q ON q.project_id = p.id
-            WHERE p.tenant_id = ?
+            WHERE p.tenant_id = ? AND p.status != 'archived'
             GROUP BY p.id
             ORDER BY p.name
         ''', (tenant['id'],)).fetchall()
@@ -780,8 +820,8 @@ def admin_projects():
     """List all projects grouped by tenant."""
     db = get_db()
 
-    # Get all tenants
-    tenants = db.execute('SELECT id, name, status FROM tenants ORDER BY name').fetchall()
+    # Get all active tenants
+    tenants = db.execute("SELECT id, name, status FROM tenants WHERE status != 'archived' ORDER BY name").fetchall()
 
     # Build tenant-project hierarchy
     tenant_projects = []
@@ -794,7 +834,7 @@ def admin_projects():
                    COUNT(q.id) as quote_count
             FROM projects p
             LEFT JOIN quotes q ON q.project_id = p.id
-            WHERE p.tenant_id = ?
+            WHERE p.tenant_id = ? AND p.status != 'archived'
             GROUP BY p.id
             ORDER BY p.name
         ''', (tenant['id'],)).fetchall()
@@ -823,7 +863,7 @@ def admin_tenant_projects(tenant_id):
                COUNT(q.id) as quote_count
         FROM projects p
         LEFT JOIN quotes q ON q.project_id = p.id
-        WHERE p.tenant_id = ?
+        WHERE p.tenant_id = ? AND p.status != 'archived'
         GROUP BY p.id
         ORDER BY p.name
     ''', (tenant_id,)).fetchall()
@@ -886,7 +926,7 @@ def admin_project_quotes(project_id):
 def admin_project_new():
     """Show form to create new project."""
     db = get_db()
-    tenants = db.execute('SELECT id, name FROM tenants ORDER BY name').fetchall()
+    tenants = db.execute("SELECT id, name FROM tenants WHERE status != 'archived' ORDER BY name").fetchall()
     db.close()
     return render_template('admin/project_form.html', tenants=[dict(t) for t in tenants])
 

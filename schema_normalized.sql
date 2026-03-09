@@ -312,7 +312,7 @@ CREATE TABLE IF NOT EXISTS tenants (
     contact_name TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive'))
+    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive', 'archived'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_tenant_name ON tenants(name);

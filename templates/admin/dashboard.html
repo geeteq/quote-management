@@ -24,6 +24,11 @@
                                 Tenant List
                             </a>
                         </li>
+                        <li>
+                            <a href="#" class="admin-menu-item" data-view="archived-tenants">
+                                Archived Tenants
+                            </a>
+                        </li>
                     </ul>
                 </div>
                 <div class="admin-menu-section">
@@ -66,6 +71,8 @@
                 // Load content based on view
                 if (view === 'tenants') {
                     await loadTenantsView();
+                } else if (view === 'archived-tenants') {
+                    await loadArchivedTenantsView();
                 } else if (view === 'projects') {
                     await loadProjectsView();
                 }
@@ -92,6 +99,36 @@
                 }
             } catch (error) {
                 contentArea.innerHTML = `<div class="error">Error loading tenants: ${error.message}</div>`;
+            }
+        }
+
+        async function loadArchivedTenantsView() {
+            const contentArea = document.getElementById('contentArea');
+            contentArea.innerHTML = '<div class="loading">Loading archived tenants...</div>';
+            try {
+                const response = await fetch('/admin/tenants/archived');
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const content = doc.querySelector('.archived-tenants-content');
+                contentArea.innerHTML = content ? content.outerHTML : html;
+            } catch (error) {
+                contentArea.innerHTML = `<div class="error">Error loading archived tenants: ${error.message}</div>`;
+            }
+        }
+
+        async function archiveTenant(id, name) {
+            if (!confirm(`Archive "${name}"?\n\nThis will also archive all associated projects.`)) return;
+            try {
+                const response = await fetch(`/api/admin/tenants/${id}/archive`, { method: 'POST' });
+                const result = await response.json();
+                if (result.success) {
+                    await loadTenantsView();
+                } else {
+                    alert(`Error: ${result.error}`);
+                }
+            } catch (error) {
+                alert(`Error: ${error.message}`);
             }
         }
 
