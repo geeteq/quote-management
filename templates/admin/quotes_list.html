@@ -14,8 +14,8 @@
         </div>
 
         {% if quotes %}
-        <div class="tenants-table-wrapper">
-            <table class="admin-table" id="quotesAdminTable">
+        <div class="components-table-wrapper">
+            <table class="components-table" id="quotesAdminTable">
                 <thead>
                     <tr>
                         <th>Quote ID</th>
@@ -34,7 +34,7 @@
                 <tbody>
                     {% for q in quotes %}
                     <tr>
-                        <td><a href="/quotes/{{ q.id }}" class="quote-id-link">{{ q.quote_id }}</a></td>
+                        <td><a href="/quote/{{ q.id }}" target="_blank" class="quote-id-link">{{ q.quote_id }}</a></td>
                         <td>
                             <span class="vendor-pill vendor-{{ q.vendor|lower }}">{{ q.vendor }}</span>
                         </td>
