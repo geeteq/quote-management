@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Add Tenant - Admin</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>const BASE_URL = "{{ base_url }}";</script>
 </head>
 <body>
     <div class="admin-form-page">
         <div class="admin-form-container">
             <div class="admin-form-header">
                 <h1>Add New Tenant</h1>
-                <a href="/admin" class="back-link">← Back to Admin</a>
+                <a href="{{ base_url }}/admin" class="back-link">← Back to Admin</a>
             </div>
 
             <form id="tenantForm" class="admin-form">
@@ -30,7 +31,7 @@
 
                 <div class="form-actions">
                     <button type="submit" class="btn-primary">Save Tenant</button>
-                    <a href="/admin" class="btn-secondary">Cancel</a>
+                    <a href="{{ base_url }}/admin" class="btn-secondary">Cancel</a>
                 </div>
             </form>
         </div>
@@ -59,7 +60,7 @@
                 const formData = new FormData();
                 formData.append('tenant_name', tenantName);
 
-                const response = await fetch('/admin/tenants/create', {
+                const response = await fetch(`${BASE_URL}/admin/tenants/create`, {
                     method: 'POST',
                     body: formData
                 });
@@ -69,7 +70,7 @@
                 if (result.success) {
                     statusDiv.innerHTML = '<div class="success">Tenant created successfully!</div>';
                     setTimeout(() => {
-                        window.location.href = '/admin';
+                        window.location.href = `${BASE_URL}/admin`;
                     }, 1000);
                 } else {
                     statusDiv.innerHTML = `<div class="error">Error: ${result.error}</div>`;

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Quote Management</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>const BASE_URL = "{{ base_url }}";</script>
 </head>
 <body>
     <div class="admin-layout">
@@ -12,7 +13,7 @@
         <aside class="admin-sidebar">
             <div class="admin-sidebar-header">
                 <h2>Admin Panel</h2>
-                <a href="/" class="back-link">← Back to Main</a>
+                <a href="{{ base_url }}/" class="back-link">← Back to Main</a>
             </div>
 
             <nav class="admin-menu">
@@ -108,7 +109,7 @@
             contentArea.innerHTML = '<div class="loading">Loading tenants...</div>';
 
             try {
-                const response = await fetch('/admin/tenants');
+                const response = await fetch(`${BASE_URL}/admin/tenants`);
                 const html = await response.text();
 
                 // Extract just the content we need
@@ -130,7 +131,7 @@
             const contentArea = document.getElementById('contentArea');
             contentArea.innerHTML = '<div class="loading">Loading archived tenants...</div>';
             try {
-                const response = await fetch('/admin/tenants/archived');
+                const response = await fetch(`${BASE_URL}/admin/tenants/archived`);
                 const html = await response.text();
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
@@ -144,7 +145,7 @@
         async function archiveTenant(id, name) {
             if (!confirm(`Archive "${name}"?\n\nThis will also archive all associated projects.`)) return;
             try {
-                const response = await fetch(`/api/admin/tenants/${id}/archive`, { method: 'POST' });
+                const response = await fetch(`${BASE_URL}/api/admin/tenants/${id}/archive`, { method: 'POST' });
                 const result = await response.json();
                 if (result.success) {
                     await loadTenantsView();
@@ -161,7 +162,7 @@
             contentArea.innerHTML = '<div class="loading">Loading projects...</div>';
 
             try {
-                const response = await fetch('/admin/projects');
+                const response = await fetch(`${BASE_URL}/admin/projects`);
                 const html = await response.text();
 
                 const parser = new DOMParser();
@@ -183,7 +184,7 @@
             contentArea.innerHTML = '<div class="loading">Loading tenant projects...</div>';
 
             try {
-                const response = await fetch(`/admin/tenants/${tenantId}/projects`);
+                const response = await fetch(`${BASE_URL}/admin/tenants/${tenantId}/projects`);
                 const html = await response.text();
 
                 const parser = new DOMParser();
@@ -204,7 +205,7 @@
             const contentArea = document.getElementById('contentArea');
             contentArea.innerHTML = '<div class="loading">Loading components...</div>';
             try {
-                const response = await fetch('/admin/components');
+                const response = await fetch(`${BASE_URL}/admin/components`);
                 const html = await response.text();
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
@@ -220,7 +221,7 @@
             const contentArea = document.getElementById('contentArea');
             contentArea.innerHTML = '<div class="loading">Loading quotes...</div>';
             try {
-                const response = await fetch('/admin/quotes');
+                const response = await fetch(`${BASE_URL}/admin/quotes`);
                 const html = await response.text();
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
@@ -264,7 +265,7 @@
         async function deleteQuote(id, quoteId) {
             if (!confirm(`Delete quote "${quoteId}"?\n\nThis will permanently remove the quote and all its line items.`)) return;
             try {
-                const response = await fetch(`/api/admin/quotes/${id}/delete`, { method: 'POST' });
+                const response = await fetch(`${BASE_URL}/api/admin/quotes/${id}/delete`, { method: 'POST' });
                 const result = await response.json();
                 if (result.success) {
                     await loadQuotesView();
@@ -292,7 +293,7 @@
             contentArea.innerHTML = '<div class="loading">Loading project quotes...</div>';
 
             try {
-                const response = await fetch(`/admin/projects/${projectId}/quotes`);
+                const response = await fetch(`${BASE_URL}/admin/projects/${projectId}/quotes`);
                 const html = await response.text();
 
                 const parser = new DOMParser();

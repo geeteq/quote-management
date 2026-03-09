@@ -40,7 +40,7 @@
                 <tbody>
                     {% for q in quotes %}
                     <tr>
-                        <td><a href="/quote/{{ q.id }}" target="_blank" class="quote-id-link">{{ q.quote_id }}</a></td>
+                        <td><a href="{{ base_url }}/quote/{{ q.id }}" target="_blank" class="quote-id-link">{{ q.quote_id }}</a></td>
                         <td>
                             <span class="vendor-pill vendor-{{ q.vendor|lower }}">{{ q.vendor }}</span>
                         </td>
