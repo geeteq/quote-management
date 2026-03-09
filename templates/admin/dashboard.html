@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Quote Management</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="admin-layout">
+        <!-- Left Sidebar -->
+        <aside class="admin-sidebar">
+            <div class="admin-sidebar-header">
+                <h2>Admin Panel</h2>
+                <a href="/" class="back-link">← Back to Main</a>
+            </div>
+
+            <nav class="admin-menu">
+                <div class="admin-menu-section">
+                    <h3 class="admin-menu-header">Tenant Management</h3>
+                    <ul class="admin-menu-list">
+                        <li>
+                            <a href="#" class="admin-menu-item active" data-view="tenants">
+                                Tenant List
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="admin-menu-section">
+                    <h3 class="admin-menu-header">Project Management</h3>
+                    <ul class="admin-menu-list">
+                        <li>
+                            <a href="#" class="admin-menu-item" data-view="projects">
+                                Project List
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Right Content Area -->
+        <main class="admin-content">
+            <div id="contentArea">
+                <div class="admin-welcome">
+                    <h1>Welcome to Admin Dashboard</h1>
+                    <p>Select an option from the menu to get started.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Handle menu navigation
+        document.querySelectorAll('.admin-menu-item').forEach(item => {
+            item.addEventListener('click', async (e) => {
+                e.preventDefault();
+
+                // Update active state
+                document.querySelectorAll('.admin-menu-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+
+                // Get view type
+                const view = item.dataset.view;
+
+                // Load content based on view
+                if (view === 'tenants') {
+                    await loadTenantsView();
+                } else if (view === 'projects') {
+                    await loadProjectsView();
+                }
+            });
+        });
+
+        async function loadTenantsView() {
+            const contentArea = document.getElementById('contentArea');
+            contentArea.innerHTML = '<div class="loading">Loading tenants...</div>';
+
+            try {
+                const response = await fetch('/admin/tenants');
+                const html = await response.text();
+
+                // Extract just the content we need
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const content = doc.querySelector('.tenants-content');
+
+                if (content) {
+                    contentArea.innerHTML = content.outerHTML;
+                } else {
+                    contentArea.innerHTML = html;
+                }
+            } catch (error) {
+                contentArea.innerHTML = `<div class="error">Error loading tenants: ${error.message}</div>`;
+            }
+        }
+
+        async function loadProjectsView() {
+            const contentArea = document.getElementById('contentArea');
+            contentArea.innerHTML = '<div class="loading">Loading projects...</div>';
+
+            try {
+                const response = await fetch('/admin/projects');
+                const html = await response.text();
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const content = doc.querySelector('.projects-content');
+
+                if (content) {
+                    contentArea.innerHTML = content.outerHTML;
+                } else {
+                    contentArea.innerHTML = html;
+                }
+            } catch (error) {
+                contentArea.innerHTML = `<div class="error">Error loading projects: ${error.message}</div>`;
+            }
+        }
+
+        async function loadTenantProjects(tenantId, tenantName) {
+            const contentArea = document.getElementById('contentArea');
+            contentArea.innerHTML = '<div class="loading">Loading tenant projects...</div>';
+
+            try {
+                const response = await fetch(`/admin/tenants/${tenantId}/projects`);
+                const html = await response.text();
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const content = doc.querySelector('.tenant-projects-content');
+
+                if (content) {
+                    contentArea.innerHTML = content.outerHTML;
+                } else {
+                    contentArea.innerHTML = html;
+                }
+            } catch (error) {
+                contentArea.innerHTML = `<div class="error">Error loading tenant projects: ${error.message}</div>`;
+            }
+        }
+
+        async function loadProjectQuotes(projectId, projectName, tenantId, tenantName) {
+            const contentArea = document.getElementById('contentArea');
+            contentArea.innerHTML = '<div class="loading">Loading project quotes...</div>';
+
+            try {
+                const response = await fetch(`/admin/projects/${projectId}/quotes`);
+                const html = await response.text();
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const content = doc.querySelector('.project-quotes-content');
+
+                if (content) {
+                    contentArea.innerHTML = content.outerHTML;
+                } else {
+                    contentArea.innerHTML = html;
+                }
+            } catch (error) {
+                contentArea.innerHTML = `<div class="error">Error loading project quotes: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

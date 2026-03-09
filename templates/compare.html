@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compare Quotes</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="/">← Back to All Quotes</a>
+        </div>
+
+        <div class="comparison-header">
+            <h1>Quote Comparison</h1>
+        </div>
+
+        <div class="comparison-grid">
+            <!-- Quote 1 Column -->
+            <div class="comparison-column">
+                <div class="comparison-quote-header">
+                    <div class="vendor-badge {{ quote1.quote.vendor|lower }}">
+                        {{ quote1.quote.vendor }}
+                    </div>
+                    <h2>{{ quote1.quote.quote_id }}</h2>
+                    <div class="quote-summary">
+                        <div class="summary-row">
+                            <span class="label">Customer:</span>
+                            <span class="value">{{ quote1.quote.customer_name or 'N/A' }}</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="label">Date:</span>
+                            <span class="value">{{ quote1.quote.quote_date or 'N/A' }}</span>
+                        </div>
+                        <div class="summary-row total">
+                            <span class="label">Total:</span>
+                            <span class="value">{{ quote1.quote.currency }} {{ '{:,.2f}'.format(quote1.quote.total_amount) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quote 2 Column -->
+            <div class="comparison-column">
+                <div class="comparison-quote-header">
+                    <div class="vendor-badge {{ quote2.quote.vendor|lower }}">
+                        {{ quote2.quote.vendor }}
+                    </div>
+                    <h2>{{ quote2.quote.quote_id }}</h2>
+                    <div class="quote-summary">
+                        <div class="summary-row">
+                            <span class="label">Customer:</span>
+                            <span class="value">{{ quote2.quote.customer_name or 'N/A' }}</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="label">Date:</span>
+                            <span class="value">{{ quote2.quote.quote_date or 'N/A' }}</span>
+                        </div>
+                        <div class="summary-row total">
+                            <span class="label">Total:</span>
+                            <span class="value">{{ quote2.quote.currency }} {{ '{:,.2f}'.format(quote2.quote.total_amount) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CPU Comparison Section -->
+        {% if 'CPU' in quote1.categories or 'CPU' in quote2.categories %}
+        <div class="cpu-comparison-section">
+            <h2 class="cpu-comparison-title">CPU Specifications Comparison</h2>
+
+            <div class="cpu-comparison-grid">
+                <!-- Quote 1 CPU -->
+                <div class="cpu-comparison-column">
+                    {% if 'CPU' in quote1.categories %}
+                        {% set cpu_items = quote1.categories['CPU'] %}
+                        {% set total_cpus = namespace(count=0, cores=0, threads=0, clock=0, cache=0, models=[]) %}
+
+                        {% for item in cpu_items %}
+                            {% if item.specs and item.specs.get('cores') %}
+                                {% set total_cpus.count = total_cpus.count + item.quantity %}
+                                {% set total_cpus.cores = total_cpus.cores + (item.quantity * item.specs.cores) %}
+                                {% set total_cpus.threads = total_cpus.threads + (item.quantity * item.specs.threads) %}
+                                {% if item.specs.get('base_clock_ghz') and total_cpus.clock == 0 %}
+                                    {% set total_cpus.clock = item.specs.base_clock_ghz %}
+                                {% endif %}
+                                {% if item.specs.get('cache_mb') %}
+                                    {% set total_cpus.cache = total_cpus.cache + (item.quantity * item.specs.cache_mb) %}
+                                {% endif %}
+                                {% set _ = total_cpus.models.append(item.specs.get('model', 'Unknown')) %}
+                            {% endif %}
+                        {% endfor %}
+
+                        <div class="cpu-spec-card">
+                            <div class="cpu-model">{{ total_cpus.models|join(', ') if total_cpus.models else 'N/A' }}</div>
+                            <div class="cpu-count">{{ total_cpus.count }} CPU(s)</div>
+                        </div>
+                    {% else %}
+                        <div class="cpu-spec-card cpu-missing">
+                            <p>No CPU data</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Middle Comparison -->
+                <div class="cpu-comparison-middle">
+                    {% if 'CPU' in quote1.categories and 'CPU' in quote2.categories %}
+                        {% set cpu1_items = quote1.categories['CPU'] %}
+                        {% set cpu2_items = quote2.categories['CPU'] %}
+
+                        {% set cpu1 = namespace(count=0, cores=0, threads=0, clock=0, cache=0) %}
+                        {% set cpu2 = namespace(count=0, cores=0, threads=0, clock=0, cache=0) %}
+
+                        {% for item in cpu1_items %}
+                            {% if item.specs and item.specs.get('cores') %}
+                                {% set cpu1.count = cpu1.count + item.quantity %}
+                                {% set cpu1.cores = cpu1.cores + (item.quantity * item.specs.cores) %}
+                                {% set cpu1.threads = cpu1.threads + (item.quantity * item.specs.threads) %}
+                                {% if item.specs.get('base_clock_ghz') and cpu1.clock == 0 %}
+                                    {% set cpu1.clock = item.specs.base_clock_ghz %}
+                                {% endif %}
+                                {% if item.specs.get('cache_mb') %}
+                                    {% set cpu1.cache = cpu1.cache + (item.quantity * item.specs.cache_mb) %}
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+
+                        {% for item in cpu2_items %}
+                            {% if item.specs and item.specs.get('cores') %}
+                                {% set cpu2.count = cpu2.count + item.quantity %}
+                                {% set cpu2.cores = cpu2.cores + (item.quantity * item.specs.cores) %}
+                                {% set cpu2.threads = cpu2.threads + (item.quantity * item.specs.threads) %}
+                                {% if item.specs.get('base_clock_ghz') and cpu2.clock == 0 %}
+                                    {% set cpu2.clock = item.specs.base_clock_ghz %}
+                                {% endif %}
+                                {% if item.specs.get('cache_mb') %}
+                                    {% set cpu2.cache = cpu2.cache + (item.quantity * item.specs.cache_mb) %}
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+
+                        <div class="cpu-comparison-table">
+                            <!-- Total CPUs -->
+                            <div class="cpu-comparison-row">
+                                <div class="cpu-comparison-label">Total CPUs</div>
+                                <div class="cpu-comparison-values">
+                                    <span class="cpu-value {% if cpu1.count > cpu2.count %}cpu-better{% elif cpu1.count < cpu2.count %}cpu-worse{% endif %}">
+                                        {{ cpu1.count }}
+                                    </span>
+                                    <span class="cpu-vs">vs</span>
+                                    <span class="cpu-value {% if cpu2.count > cpu1.count %}cpu-better{% elif cpu2.count < cpu1.count %}cpu-worse{% endif %}">
+                                        {{ cpu2.count }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Total Cores -->
+                            <div class="cpu-comparison-row">
+                                <div class="cpu-comparison-label">Total Cores</div>
+                                <div class="cpu-comparison-values">
+                                    <span class="cpu-value {% if cpu1.cores > cpu2.cores %}cpu-better{% elif cpu1.cores < cpu2.cores %}cpu-worse{% endif %}">
+                                        {{ cpu1.cores }}
+                                    </span>
+                                    <span class="cpu-vs">vs</span>
+                                    <span class="cpu-value {% if cpu2.cores > cpu1.cores %}cpu-better{% elif cpu2.cores < cpu1.cores %}cpu-worse{% endif %}">
+                                        {{ cpu2.cores }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Total Threads -->
+                            <div class="cpu-comparison-row">
+                                <div class="cpu-comparison-label">Total Threads</div>
+                                <div class="cpu-comparison-values">
+                                    <span class="cpu-value {% if cpu1.threads > cpu2.threads %}cpu-better{% elif cpu1.threads < cpu2.threads %}cpu-worse{% endif %}">
+                                        {{ cpu1.threads }}
+                                    </span>
+                                    <span class="cpu-vs">vs</span>
+                                    <span class="cpu-value {% if cpu2.threads > cpu1.threads %}cpu-better{% elif cpu2.threads < cpu1.threads %}cpu-worse{% endif %}">
+                                        {{ cpu2.threads }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Clock Speed -->
+                            {% if cpu1.clock > 0 and cpu2.clock > 0 %}
+                            <div class="cpu-comparison-row">
+                                <div class="cpu-comparison-label">Base Clock</div>
+                                <div class="cpu-comparison-values">
+                                    <span class="cpu-value {% if cpu1.clock > cpu2.clock %}cpu-better{% elif cpu1.clock < cpu2.clock %}cpu-worse{% endif %}">
+                                        {{ cpu1.clock }}GHz
+                                    </span>
+                                    <span class="cpu-vs">vs</span>
+                                    <span class="cpu-value {% if cpu2.clock > cpu1.clock %}cpu-better{% elif cpu2.clock < cpu1.clock %}cpu-worse{% endif %}">
+                                        {{ cpu2.clock }}GHz
+                                    </span>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <!-- Total Cache -->
+                            {% if cpu1.cache > 0 and cpu2.cache > 0 %}
+                            <div class="cpu-comparison-row">
+                                <div class="cpu-comparison-label">Total Cache</div>
+                                <div class="cpu-comparison-values">
+                                    <span class="cpu-value {% if cpu1.cache > cpu2.cache %}cpu-better{% elif cpu1.cache < cpu2.cache %}cpu-worse{% endif %}">
+                                        {{ cpu1.cache }}MB
+                                    </span>
+                                    <span class="cpu-vs">vs</span>
+                                    <span class="cpu-value {% if cpu2.cache > cpu1.cache %}cpu-better{% elif cpu2.cache < cpu1.cache %}cpu-worse{% endif %}">
+                                        {{ cpu2.cache }}MB
+                                    </span>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <!-- Core-to-Core Ratio -->
+                            <div class="cpu-comparison-row cpu-ratio-row">
+                                <div class="cpu-comparison-label">Core Ratio</div>
+                                <div class="cpu-comparison-values">
+                                    {% if cpu1.cores > 0 and cpu2.cores > 0 %}
+                                        {% set ratio = (cpu1.cores / cpu2.cores) %}
+                                        {% if ratio > 1 %}
+                                            <span class="cpu-ratio">{{ '%.2f'|format(ratio) }}:1</span>
+                                            <span class="cpu-advantage cpu-better">Quote 1 has {{ '%.0f'|format((ratio - 1) * 100) }}% more cores</span>
+                                        {% elif ratio < 1 %}
+                                            <span class="cpu-ratio">1:{{ '%.2f'|format(1/ratio) }}</span>
+                                            <span class="cpu-advantage cpu-worse">Quote 2 has {{ '%.0f'|format(((1/ratio) - 1) * 100) }}% more cores</span>
+                                        {% else %}
+                                            <span class="cpu-ratio">1:1</span>
+                                            <span class="cpu-advantage">Equal cores</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="cpu-comparison-unavailable">
+                            <p>CPU comparison unavailable - one or both quotes missing CPU data</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Quote 2 CPU -->
+                <div class="cpu-comparison-column">
+                    {% if 'CPU' in quote2.categories %}
+                        {% set cpu_items = quote2.categories['CPU'] %}
+                        {% set total_cpus = namespace(count=0, cores=0, threads=0, clock=0, cache=0, models=[]) %}
+
+                        {% for item in cpu_items %}
+                            {% if item.specs and item.specs.get('cores') %}
+                                {% set total_cpus.count = total_cpus.count + item.quantity %}
+                                {% set total_cpus.cores = total_cpus.cores + (item.quantity * item.specs.cores) %}
+                                {% set total_cpus.threads = total_cpus.threads + (item.quantity * item.specs.threads) %}
+                                {% if item.specs.get('base_clock_ghz') and total_cpus.clock == 0 %}
+                                    {% set total_cpus.clock = item.specs.base_clock_ghz %}
+                                {% endif %}
+                                {% if item.specs.get('cache_mb') %}
+                                    {% set total_cpus.cache = total_cpus.cache + (item.quantity * item.specs.cache_mb) %}
+                                {% endif %}
+                                {% set _ = total_cpus.models.append(item.specs.get('model', 'Unknown')) %}
+                            {% endif %}
+                        {% endfor %}
+
+                        <div class="cpu-spec-card">
+                            <div class="cpu-model">{{ total_cpus.models|join(', ') if total_cpus.models else 'N/A' }}</div>
+                            <div class="cpu-count">{{ total_cpus.count }} CPU(s)</div>
+                        </div>
+                    {% else %}
+                        <div class="cpu-spec-card cpu-missing">
+                            <p>No CPU data</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Category Comparisons -->
+        {% for category in categories %}
+        <div class="comparison-category-section">
+            <h3 class="comparison-category-title">{{ category }}</h3>
+
+            <div class="comparison-grid">
+                <!-- Quote 1 Items -->
+                <div class="comparison-column">
+                    {% if category in quote1.categories %}
+                        {% set items1 = quote1.categories[category] %}
+                        <div class="category-item-count">{{ items1|length }} item(s)</div>
+
+                        {% for item in items1 %}
+                        <div class="comparison-item">
+                            <div class="item-qty">{{ item.quantity }}×</div>
+                            <div class="item-details">
+                                <div class="item-description">{{ item.description }}</div>
+                                <div class="item-meta">
+                                    <span class="part-number">{{ item.product_number }}</span>
+                                    {% if item.manufacturer %}
+                                    <span class="manufacturer">{{ item.manufacturer }}</span>
+                                    {% endif %}
+                                </div>
+
+                                {% if item.specs and item.specs|length > 0 %}
+                                <div class="item-specs">
+                                    {% for key, value in item.specs.items() %}
+                                    <span class="spec-badge">
+                                        <span class="spec-key">{{ key.replace('_', ' ').title() }}:</span>
+                                        <span class="spec-value">{{ value }}</span>
+                                    </span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+
+                                {% if category == 'Memory' and item.specs.get('capacity_gb') %}
+                                <div class="memory-calculation">
+                                    <span class="calc-label">Total for this item:</span>
+                                    <span class="calc-formula">{{ item.quantity }} × {{ item.specs.capacity_gb }}GB = <strong>{{ item.quantity * item.specs.capacity_gb }}GB</strong></span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="category-missing">
+                            <p>No {{ category }} items in this quote</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Quote 2 Items -->
+                <div class="comparison-column">
+                    {% if category in quote2.categories %}
+                        {% set items2 = quote2.categories[category] %}
+                        <div class="category-item-count">{{ items2|length }} item(s)</div>
+
+                        {% for item in items2 %}
+                        <div class="comparison-item">
+                            <div class="item-qty">{{ item.quantity }}×</div>
+                            <div class="item-details">
+                                <div class="item-description">{{ item.description }}</div>
+                                <div class="item-meta">
+                                    <span class="part-number">{{ item.product_number }}</span>
+                                    {% if item.manufacturer %}
+                                    <span class="manufacturer">{{ item.manufacturer }}</span>
+                                    {% endif %}
+                                </div>
+
+                                {% if item.specs and item.specs|length > 0 %}
+                                <div class="item-specs">
+                                    {% for key, value in item.specs.items() %}
+                                    <span class="spec-badge">
+                                        <span class="spec-key">{{ key.replace('_', ' ').title() }}:</span>
+                                        <span class="spec-value">{{ value }}</span>
+                                    </span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+
+                                {% if category == 'Memory' and item.specs.get('capacity_gb') %}
+                                <div class="memory-calculation">
+                                    <span class="calc-label">Total for this item:</span>
+                                    <span class="calc-formula">{{ item.quantity }} × {{ item.specs.capacity_gb }}GB = <strong>{{ item.quantity * item.specs.capacity_gb }}GB</strong></span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="category-missing">
+                            <p>No {{ category }} items in this quote</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        // Highlight differences on load
+        document.addEventListener('DOMContentLoaded', function() {
+            highlightDifferences();
+        });
+
+        function highlightDifferences() {
+            const sections = document.querySelectorAll('.comparison-category-section');
+
+            sections.forEach(section => {
+                const columns = section.querySelectorAll('.comparison-column');
+                if (columns.length !== 2) return;
+
+                const items1 = columns[0].querySelectorAll('.comparison-item');
+                const items2 = columns[1].querySelectorAll('.comparison-item');
+
+                // If item counts differ, highlight the columns
+                if (items1.length !== items2.length) {
+                    columns[0].classList.add('different-count');
+                    columns[1].classList.add('different-count');
+                }
+
+                // Check for missing categories
+                const missing1 = columns[0].querySelector('.category-missing');
+                const missing2 = columns[1].querySelector('.category-missing');
+
+                if (missing1 || missing2) {
+                    if (missing1) columns[0].classList.add('category-absent');
+                    if (missing2) columns[1].classList.add('category-absent');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

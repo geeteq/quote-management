@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tenant List - Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="tenants-content">
+        <div class="admin-content-header">
+            <h1>Tenant List</h1>
+            <a href="/admin/tenants/new" class="btn-primary">+ Add Tenant</a>
+        </div>
+
+        {% if tenants %}
+        <div class="tenants-table-wrapper">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Tenant Name</th>
+                        <th>Status</th>
+                        <th>Created At</th>
+                        <th>Updated At</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tenant in tenants %}
+                    <tr class="clickable-row" onclick="window.parent.loadTenantProjects({{ tenant.id }}, '{{ tenant.name }}')">
+                        <td>{{ tenant.id }}</td>
+                        <td class="tenant-name">{{ tenant.name }}</td>
+                        <td>
+                            <span class="status-badge status-{{ tenant.status }}">
+                                {{ tenant.status }}
+                            </span>
+                        </td>
+                        <td>{{ tenant.created_at }}</td>
+                        <td>{{ tenant.updated_at }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No tenants found. Click "Add Tenant" to create your first tenant.</p>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

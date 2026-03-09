@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ data.quote.quote_id }} - Quote Details</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="/">← Back to All Quotes</a>
+        </div>
+
+        <div class="quote-card">
+            <div class="card-header">
+                <div class="header-left">
+                    <div class="vendor-badge {{ data.quote.vendor|lower }}">{{ data.quote.vendor }}</div>
+                    <h1>{{ data.quote.quote_id }}</h1>
+                </div>
+                <div class="header-right">
+                    <div class="total-price">
+                        <span class="label">Total</span>
+                        <span class="amount">{{ data.quote.currency }} {{ '{:,.2f}'.format(data.quote.total_amount) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-summary">
+                <div class="summary-item">
+                    <span class="label">Customer</span>
+                    <span class="value">{{ data.quote.customer_name }}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Description</span>
+                    <span class="value">{{ data.quote.description }}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Quote Date</span>
+                    <span class="value">{{ data.quote.quote_date }}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Expires</span>
+                    <span class="value">{{ data.quote.expiry_date }}</span>
+                </div>
+            </div>
+
+            <div class="card-body">
+                {% set category_order = ['CPU', 'Memory', 'Disk', 'Storage Controller', 'Network Card', 'Power Supply', 'GPU', 'Additional Hardware'] %}
+
+                {% for category in category_order %}
+                    {% if category in data.categories %}
+                    <div class="category-section">
+                        <div class="category-header">
+                            <h2>
+                                {{ category }}
+                                {% if category == 'Memory' %}
+                                    {% set total_memory = data.categories[category]|calculate_memory_total %}
+                                    {% if total_memory > 0 %}
+                                        <span class="category-total">- {{ total_memory }}GB Total</span>
+                                    {% endif %}
+                                {% endif %}
+                            </h2>
+                            <span class="item-count">{{ data.categories[category]|length }} item(s)</span>
+                        </div>
+
+                        <div class="components-list">
+                            {% for item in data.categories[category] %}
+                            <div class="component-item">
+                                <div class="component-main">
+                                    <div class="component-qty">{{ item.quantity }}×</div>
+                                    <div class="component-details">
+                                        <div class="component-title">
+                                            {{ item.description }}
+                                        </div>
+                                        <div class="component-meta">
+                                            <span class="part-number">{{ item.product_number }}</span>
+                                            {% if item.manufacturer %}
+                                            <span class="manufacturer">{{ item.manufacturer }}</span>
+                                            {% endif %}
+                                            {% if item.delivery_time %}
+                                            <span class="delivery">{{ item.delivery_time }}</span>
+                                            {% endif %}
+                                        </div>
+
+                                        {% if item.specs and item.specs|length > 0 %}
+                                        <div class="component-specs">
+                                            {% for key, value in item.specs.items() %}
+                                            <span class="spec-badge">
+                                                <span class="spec-key">{{ key.replace('_', ' ').title() }}:</span>
+                                                <span class="spec-value">{{ value }}</span>
+                                            </span>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+
+                                        {% if category == 'Memory' and item.specs.get('capacity_gb') %}
+                                        <div class="memory-calculation">
+                                            <span class="calc-label">Total for this item:</span>
+                                            <span class="calc-formula">{{ item.quantity }} × {{ item.specs.capacity_gb }}GB = <strong>{{ item.quantity * item.specs.capacity_gb }}GB</strong></span>
+                                        </div>
+                                        {% endif %}
+
+                                        {% if item.urls %}
+                                        <div class="component-links">
+                                            {% for url in item.urls %}
+                                            <a href="{{ url }}" target="_blank" class="spec-link">View Specifications →</a>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

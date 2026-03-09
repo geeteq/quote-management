@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compare Quotes - Split View</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .split-view-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Top navigation bar */
+        .comparison-nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 100;
+        }
+
+        .comparison-nav h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .nav-back {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+
+        .nav-back:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        /* Main split grid */
+        .split-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 50% 50%;
+            height: calc(100vh - 60px);
+            gap: 0;
+        }
+
+        /* Quote sections */
+        .quote-section {
+            border: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .quote-section-header {
+            background: #f5f5f5;
+            padding: 10px 20px;
+            border-bottom: 2px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .quote-section-header h2 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .section-type {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+        }
+
+        .vendor-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .vendor-badge.hpe {
+            background: #01a982;
+            color: white;
+        }
+
+        .vendor-badge.dell {
+            background: #007DB8;
+            color: white;
+        }
+
+        /* PDF viewer section */
+        .pdf-viewer-section {
+            background: #2b2b2b;
+        }
+
+        .pdf-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #2b2b2b;
+        }
+
+        /* Parsed data section */
+        .parsed-data-section {
+            background: white;
+            overflow-y: auto;
+        }
+
+        .parsed-data-content {
+            padding: 20px;
+        }
+
+        /* Quote summary in parsed section */
+        .quote-summary-compact {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            font-size: 13px;
+        }
+
+        .summary-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .summary-label {
+            color: #666;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .summary-value {
+            color: #333;
+            font-weight: 600;
+        }
+
+        .total-amount {
+            grid-column: 1 / -1;
+            padding-top: 10px;
+            border-top: 2px solid #e0e0e0;
+            margin-top: 5px;
+        }
+
+        .total-amount .summary-value {
+            font-size: 18px;
+            color: #667eea;
+        }
+
+        /* Category sections */
+        .category-section {
+            margin-bottom: 20px;
+        }
+
+        .category-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .item-count {
+            font-size: 11px;
+            background: rgba(255,255,255,0.2);
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+
+        .component-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .component-item-compact {
+            background: #f8f9fa;
+            border-left: 3px solid #667eea;
+            padding: 10px 12px;
+            font-size: 12px;
+            border-radius: 4px;
+        }
+
+        .component-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .component-qty {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+
+        .component-specs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .spec-badge {
+            background: white;
+            border: 1px solid #e0e0e0;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .spec-value {
+            color: #333;
+            font-weight: 600;
+        }
+
+        /* Scrollbar styling */
+        .parsed-data-section::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .parsed-data-section::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .parsed-data-section::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        .parsed-data-section::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* CPU comparison highlight */
+        .cpu-highlight {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border: 2px solid #667eea;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .cpu-highlight .category-header {
+            margin-bottom: 8px;
+        }
+
+        .cpu-specs-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .cpu-spec-item {
+            background: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .cpu-spec-label {
+            color: #666;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .cpu-spec-value {
+            color: #333;
+            font-weight: 700;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="split-view-container">
+        <!-- Top Navigation -->
+        <div class="comparison-nav">
+            <a href="/" class="nav-back">← Back to All Quotes</a>
+            <h1>Quote Comparison - Split View</h1>
+            <div style="width: 120px;"></div>
+        </div>
+
+        <!-- Split Grid: 2x2 layout -->
+        <div class="split-grid">
+            <!-- Top Left: Quote 1 PDF -->
+            <div class="quote-section pdf-viewer-section">
+                <div class="quote-section-header">
+                    <div>
+                        <span class="vendor-badge {{ quote1.quote.vendor|lower }}">{{ quote1.quote.vendor }}</span>
+                        <h2 style="display: inline; margin-left: 10px;">{{ quote1.quote.quote_id }}</h2>
+                    </div>
+                    <span class="section-type">Original PDF</span>
+                </div>
+                <iframe
+                    src="{{ url_for('serve_pdf', quote_id=quote1.quote.id) }}"
+                    class="pdf-frame"
+                    title="Quote 1 PDF">
+                </iframe>
+            </div>
+
+            <!-- Top Right: Quote 2 PDF -->
+            <div class="quote-section pdf-viewer-section">
+                <div class="quote-section-header">
+                    <div>
+                        <span class="vendor-badge {{ quote2.quote.vendor|lower }}">{{ quote2.quote.vendor }}</span>
+                        <h2 style="display: inline; margin-left: 10px;">{{ quote2.quote.quote_id }}</h2>
+                    </div>
+                    <span class="section-type">Original PDF</span>
+                </div>
+                <iframe
+                    src="{{ url_for('serve_pdf', quote_id=quote2.quote.id) }}"
+                    class="pdf-frame"
+                    title="Quote 2 PDF">
+                </iframe>
+            </div>
+
+            <!-- Bottom Left: Quote 1 Parsed Data -->
+            <div class="quote-section parsed-data-section">
+                <div class="quote-section-header">
+                    <div>
+                        <span class="vendor-badge {{ quote1.quote.vendor|lower }}">{{ quote1.quote.vendor }}</span>
+                        <h2 style="display: inline; margin-left: 10px;">{{ quote1.quote.quote_id }}</h2>
+                    </div>
+                    <span class="section-type">Parsed Data</span>
+                </div>
+                <div class="parsed-data-content">
+                    <!-- Summary -->
+                    <div class="quote-summary-compact">
+                        <div class="summary-grid">
+                            <div class="summary-item">
+                                <span class="summary-label">Customer</span>
+                                <span class="summary-value">{{ quote1.quote.customer_name or 'N/A' }}</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Quote Date</span>
+                                <span class="summary-value">{{ quote1.quote.quote_date or 'N/A' }}</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Expires</span>
+                                <span class="summary-value">{{ quote1.quote.expiry_date or 'N/A' }}</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Description</span>
+                                <span class="summary-value">{{ quote1.quote.description or 'N/A' }}</span>
+                            </div>
+                            <div class="summary-item total-amount">
+                                <span class="summary-label">Total Amount</span>
+                                <span class="summary-value">{{ quote1.quote.currency }} {{ '{:,.2f}'.format(quote1.quote.total_amount) }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CPU Section - Highlighted -->
+                    {% if 'CPU' in quote1.categories %}
+                    <div class="cpu-highlight">
+                        <div class="category-header">
+                            <span>CPU</span>
+                            <span class="item-count">{{ quote1.categories['CPU']|length }} item(s)</span>
+                        </div>
+
+                        {% set total_cpus = namespace(count=0, cores=0, threads=0, clock=0, cache=0) %}
+                        {% for item in quote1.categories['CPU'] %}
+                            {% if item.specs and item.specs.get('cores') %}
+                                {% set total_cpus.count = total_cpus.count + item.quantity %}
+                                {% set total_cpus.cores = total_cpus.cores + (item.quantity * item.specs.cores) %}
+                                {% set total_cpus.threads = total_cpus.threads + (item.quantity * item.specs.threads) %}
+                                {% if item.specs.get('base_clock_ghz') and total_cpus.clock == 0 %}
+                                    {% set total_cpus.clock = item.specs.base_clock_ghz %}
+                                {% endif %}
+                                {% if item.specs.get('cache_mb') %}
+                                    {% set total_cpus.cache = total_cpus.cache + (item.quantity * item.specs.cache_mb) %}
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+
+                        <div class="cpu-specs-grid">
+                            <div class="cpu-spec-item">
+                                <div class="cpu-spec-label">Total CPUs</div>
+                                <div class="cpu-spec-value">{{ total_cpus.count }}</div>
+                            </div>
+                            <div class="cpu-spec-item">
+                                <div class="cpu-spec-label">Total Cores</div>
+                                <div class="cpu-spec-value">{{ total_cpus.cores }}</div>
+                            </div>
+                            <div class="cpu-spec-item">
+                                <div class="cpu-spec-label">Total Threads</div>
+                                <div class="cpu-spec-value">{{ total_cpus.threads }}</div>
+                            </div>
+                            <div class="cpu-spec-item">
+                                <div class="cpu-spec-label">Clock Speed</div>
+                                <div class="cpu-spec-value">{{ '%.1f'|format(total_cpus.clock) }} GHz</div>
+                            </div>
+                        </div>
+
+                        <div class="component-list" style="margin-top: 10px;">
+                            {% for item in quote1.categories['CPU'] %}
+                            <div class="component-item-compact">
+                                <div class="component-title">
+                                    <span class="component-qty">{{ item.quantity }}×</span>
+                                    {{ item.description[:80] }}{% if item.description|length > 80 %}...{% endif %}
+                                </div>
+                                {% if item.specs %}
+                                <div class="component-specs">
+                                    {% if item.specs.cores %}<span class="spec-badge"><span class="spec-value">{{ item.specs.cores }}</span> cores</span>{% endif %}
+                                    {% if item.specs.threads %}<span class="spec-badge"><span class="spec-value">{{ item.specs.threads }}</span> threads</span>{% endif %}
+                                    {% if item.specs.base_clock_ghz %}<span class="spec-badge"><span class="spec-value">{{ item.specs.base_clock_ghz }}</span> GHz</span>{% endif %}
+                                    {% if item.specs.cache_mb %}<span class="spec-badge"><span class="spec-value">{{ item.specs.cache_mb }}</span> MB cache</span>{% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Memory Section - Highlighted -->
+                    {% if 'Memory' in quote1.categories %}
+                    <div class="cpu-highlight" style="border-color: #4caf50;">
+                        <div class="category-header" style="background: linear-gradient(135deg, #43a047 0%, #66bb6a 100%);">
+                            <span>Memory</span>
+                            <span class="item-count">{{ quote1.categories['Memory']|length }} item(s)</span>
+                        </div>
+
+                        {% set total_memory = namespace(capacity_gb=0, count=0) %}
+                        {% for item in quote1.categories['Memory'] %}
+                            {% if item.specs and item.specs.get('capacity_gb') %}
+                                {% set total_memory.capacity_gb = total_memory.capacity_gb + (item.quantity * item.specs.capacity_gb) %}
+                                {% set total_memory.count = total_memory.count + item.quantity %}
+                            {% endif %}
+                        {% endfor %}
+
+                        <div class="cpu-specs-grid">
+                            <div class="cpu-spec-item">
+                                <div class="cpu-spec-label">Total Modules</div>
+                                <div class="cpu-spec-value">{{ total_memory.count }}</div>
+                            </div>
+                            <div class="cpu-spec-item">
+                                <div class="cpu-spec-label">Total Capacity</div>
+                                <div class="cpu-spec-value">{{ total_memory.capacity_gb }} GB</div>
+                            </div>
+                        </div>
+
+                        <div class="component-list" style="margin-top: 10px;">
+                            {% for item in quote1.categories['Memory'] %}
+                            <div class="component-item-compact">
+                                <div class="component-title">
+                                    <span class="component-qty">{{ item.quantity }}×</span>
+                                    {{ item.description[:80] }}{% if item.description|length > 80 %}...{% endif %}
+                                </div>
+                                {% if item.specs %}
+                                <div class="component-specs">
+                                    {% if item.specs.capacity_gb %}<span class="spec-badge"><span class="spec-value">{{ item.specs.capacity_gb }}</span> GB</span>{% endif %}
+                                    {% if item.specs.speed_mhz %}<span class="spec-badge"><span class="spec-value">{{ item.specs.speed_mhz }}</span> MHz</span>{% endif %}
+                                    {% if item.specs.type %}<span class="spec-badge">{{ item.specs.type }}</span>{% endif %}
+                                    {% if item.specs.ddr_generation %}<span class="spec-badge">{{ item.specs.ddr_generation }}</span>{% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Other Categories -->
+                    {% set category_order = ['Disk', 'Storage Controller', 'Network Card', 'Power Supply', 'GPU', 'Additional Hardware'] %}
+                    {% for category in category_order %}
+                        {% if category in quote1.categories %}
+                        <div class="category-section">
+                            <div class="category-header">
+                                <span>{{ category }}</span>
+                                <span class="item-count">{{ quote1.categories[category]|length }} item(s)</span>
+                            </div>
+                            <div class="component-list">
+                                {% for item in quote1.categories[category] %}
+                                <div class="component-item-compact">
+                                    <div class="component-title">
+                                        <span class="component-qty">{{ item.quantity }}×</span>
+                                        {{ item.description[:80] }}{% if item.description|length > 80 %}...{% endif %}
+                                    </div>
+                                    {% if item.specs %}
+                                    <div class="component-specs">
+                                        {% for key, value in item.specs.items() %}
+                                            {% if value and key not in ['model', 'manufacturer'] %}
+                                            <span class="spec-badge">
+                                                <span class="spec-value">{{ value }}</span>
+                                                {{ key.replace('_', ' ') }}
+                                            </span>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Bottom Right: Quote 2 Parsed Data -->
+            <div class="quote-section parsed-data-section">
+                <div class="quote-section-header">
+                    <div>
+                        <span class="vendor-badge {{ quote2.quote.vendor|lower }}">{{ quote2.quote.vendor }}</span>
+                        <h2 style="display: inline; margin-left: 10px;">{{ quote2.quote.quote_id }}</h2>
+                    </div>
+                    <span class="section-type">Parsed Data</span>
+                </div>
+                <div class="parsed-data-content">
+                    <!-- Summary -->
+                    <div class="quote-summary-compact">
+                        <div class="summary-grid">
+                            <div class="summary-item">
+                                <span class="summary-label">Customer</span>
+                                <span class="summary-value">{{ quote2.quote.customer_name or 'N/A' }}</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Quote Date</span>
+                                <span class="summary-value">{{ quote2.quote.quote_date or 'N/A' }}</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Expires</span>
+                                <span class="summary-value">{{ quote2.quote.expiry_date or 'N/A' }}</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Description</span>
+                                <span class="summary-value">{{ quote2.quote.description or 'N/A' }}</span>
+                            </div>
+                            <div class="summary-item total-amount">
+                                <span class="summary-label">Total Amount</span>
+                                <span class="summary-value">{{ quote2.quote.currency }} {{ '{:,.2f}'.format(quote2.quote.total_amount) }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CPU Section - Highlighted -->
+                    {% if 'CPU' in quote2.categories %}
+                    <div class="cpu-highlight">
+                        <div class="category-header">
+                            <span>CPU</span>
+                            <span class="item-count">{{ quote2.categories['CPU']|length }} item(s)</span>
+                        </div>
+
+                        {% set total_cpus = namespace(count=0, cores=0, threads=0, clock=0, cache=0) %}
+                        {% for item in quote2.categories['CPU'] %}
+                            {% if item.specs and item.specs.get('cores') %}
+                                {% set total_cpus.count = total_cpus.count + item.quantity %}
+                                {% set total_cpus.cores = total_cpus.cores + (item.quantity * item.specs.cores) %}
+                                {% set total_cpus.threads = total_cpus.threads + (item.quantity * item.specs.threads) %}
+                                {% if item.specs.get('base_clock_ghz') and total_cpus.clock == 0 %}
+                                    {% set total_cpus.clock = item.specs.base_clock_ghz %}
+                                {% endif %}
+                                {% if item.specs.get('cache_mb') %}
+                                    {% set total_cpus.cache = total_cpus.cache + (item.quantity * item.specs.cache_mb) %}
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+
+                        <div class="cpu-specs-grid">
+                            <div class="cpu-spec-item">
+                                <div class="cpu-spec-label">Total CPUs</div>
+                                <div class="cpu-spec-value">{{ total_cpus.count }}</div>
+                            </div>
+                            <div class="cpu-spec-item">
+                                <div class="cpu-spec-label">Total Cores</div>
+                                <div class="cpu-spec-value">{{ total_cpus.cores }}</div>
+                            </div>
+                            <div class="cpu-spec-item">
+                                <div class="cpu-spec-label">Total Threads</div>
+                                <div class="cpu-spec-value">{{ total_cpus.threads }}</div>
+                            </div>
+                            <div class="cpu-spec-item">
+                                <div class="cpu-spec-label">Clock Speed</div>
+                                <div class="cpu-spec-value">{{ '%.1f'|format(total_cpus.clock) }} GHz</div>
+                            </div>
+                        </div>
+
+                        <div class="component-list" style="margin-top: 10px;">
+                            {% for item in quote2.categories['CPU'] %}
+                            <div class="component-item-compact">
+                                <div class="component-title">
+                                    <span class="component-qty">{{ item.quantity }}×</span>
+                                    {{ item.description[:80] }}{% if item.description|length > 80 %}...{% endif %}
+                                </div>
+                                {% if item.specs %}
+                                <div class="component-specs">
+                                    {% if item.specs.cores %}<span class="spec-badge"><span class="spec-value">{{ item.specs.cores }}</span> cores</span>{% endif %}
+                                    {% if item.specs.threads %}<span class="spec-badge"><span class="spec-value">{{ item.specs.threads }}</span> threads</span>{% endif %}
+                                    {% if item.specs.base_clock_ghz %}<span class="spec-badge"><span class="spec-value">{{ item.specs.base_clock_ghz }}</span> GHz</span>{% endif %}
+                                    {% if item.specs.cache_mb %}<span class="spec-badge"><span class="spec-value">{{ item.specs.cache_mb }}</span> MB cache</span>{% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Memory Section - Highlighted -->
+                    {% if 'Memory' in quote2.categories %}
+                    <div class="cpu-highlight" style="border-color: #4caf50;">
+                        <div class="category-header" style="background: linear-gradient(135deg, #43a047 0%, #66bb6a 100%);">
+                            <span>Memory</span>
+                            <span class="item-count">{{ quote2.categories['Memory']|length }} item(s)</span>
+                        </div>
+
+                        {% set total_memory = namespace(capacity_gb=0, count=0) %}
+                        {% for item in quote2.categories['Memory'] %}
+                            {% if item.specs and item.specs.get('capacity_gb') %}
+                                {% set total_memory.capacity_gb = total_memory.capacity_gb + (item.quantity * item.specs.capacity_gb) %}
+                                {% set total_memory.count = total_memory.count + item.quantity %}
+                            {% endif %}
+                        {% endfor %}
+
+                        <div class="cpu-specs-grid">
+                            <div class="cpu-spec-item">
+                                <div class="cpu-spec-label">Total Modules</div>
+                                <div class="cpu-spec-value">{{ total_memory.count }}</div>
+                            </div>
+                            <div class="cpu-spec-item">
+                                <div class="cpu-spec-label">Total Capacity</div>
+                                <div class="cpu-spec-value">{{ total_memory.capacity_gb }} GB</div>
+                            </div>
+                        </div>
+
+                        <div class="component-list" style="margin-top: 10px;">
+                            {% for item in quote2.categories['Memory'] %}
+                            <div class="component-item-compact">
+                                <div class="component-title">
+                                    <span class="component-qty">{{ item.quantity }}×</span>
+                                    {{ item.description[:80] }}{% if item.description|length > 80 %}...{% endif %}
+                                </div>
+                                {% if item.specs %}
+                                <div class="component-specs">
+                                    {% if item.specs.capacity_gb %}<span class="spec-badge"><span class="spec-value">{{ item.specs.capacity_gb }}</span> GB</span>{% endif %}
+                                    {% if item.specs.speed_mhz %}<span class="spec-badge"><span class="spec-value">{{ item.specs.speed_mhz }}</span> MHz</span>{% endif %}
+                                    {% if item.specs.type %}<span class="spec-badge">{{ item.specs.type }}</span>{% endif %}
+                                    {% if item.specs.ddr_generation %}<span class="spec-badge">{{ item.specs.ddr_generation }}</span>{% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Other Categories -->
+                    {% set category_order = ['Disk', 'Storage Controller', 'Network Card', 'Power Supply', 'GPU', 'Additional Hardware'] %}
+                    {% for category in category_order %}
+                        {% if category in quote2.categories %}
+                        <div class="category-section">
+                            <div class="category-header">
+                                <span>{{ category }}</span>
+                                <span class="item-count">{{ quote2.categories[category]|length }} item(s)</span>
+                            </div>
+                            <div class="component-list">
+                                {% for item in quote2.categories[category] %}
+                                <div class="component-item-compact">
+                                    <div class="component-title">
+                                        <span class="component-qty">{{ item.quantity }}×</span>
+                                        {{ item.description[:80] }}{% if item.description|length > 80 %}...{% endif %}
+                                    </div>
+                                    {% if item.specs %}
+                                    <div class="component-specs">
+                                        {% for key, value in item.specs.items() %}
+                                            {% if value and key not in ['model', 'manufacturer'] %}
+                                            <span class="spec-badge">
+                                                <span class="spec-value">{{ value }}</span>
+                                                {{ key.replace('_', ' ') }}
+                                            </span>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

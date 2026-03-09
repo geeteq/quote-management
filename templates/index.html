@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quote Management System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Admin Button (Top Right) -->
+    <a href="/admin" class="admin-button" title="Admin Dashboard">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10 2C5.58 2 2 5.58 2 10C2 14.42 5.58 18 10 18C14.42 18 18 14.42 18 10C18 5.58 14.42 2 10 2ZM10 4C11.1 4 12 4.9 12 6C12 7.1 11.1 8 10 8C8.9 8 8 7.1 8 6C8 4.9 8.9 4 10 4ZM10 16C8 16 6.3 14.9 5.4 13.2C5.5 11.4 9 10.4 10 10.4C11 10.4 14.5 11.4 14.6 13.2C13.7 14.9 12 16 10 16Z" fill="currentColor"/>
+        </svg>
+        Admin
+    </a>
+
+    <div class="container">
+        <header>
+            <h1>Server Quote Management</h1>
+            <p class="subtitle">Compare and analyze vendor quotes</p>
+        </header>
+
+        <!-- Top Divider -->
+        <div class="top-divider"></div>
+
+        <!-- Fixed Compare Button -->
+        <div id="compareButton" class="compare-button" style="display: none;">
+            <span class="compare-count">0</span> selected
+            <button onclick="navigateToCompare()" disabled id="compareActionBtn">
+                Compare Quotes
+            </button>
+        </div>
+
+        <div class="upload-section">
+            <h2>Upload New Quote</h2>
+            <form id="uploadForm" enctype="multipart/form-data">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="tenantName">Tenant Name</label>
+                        <input type="text" id="tenantName" name="tenant_name" placeholder="Enter tenant name">
+                    </div>
+                    <div class="form-group">
+                        <label for="projectName">Project Name</label>
+                        <input type="text" id="projectName" name="project_name" placeholder="Enter project name">
+                    </div>
+                    <div class="form-group">
+                        <label for="ica">ICA</label>
+                        <input type="text" id="ica" name="ica" placeholder="Enter ICA">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="fileInput">Quote PDF</label>
+                    <input type="file" id="fileInput" name="file" accept=".pdf" required>
+                </div>
+                <button type="submit">Parse Quote</button>
+            </form>
+            <div id="uploadStatus"></div>
+        </div>
+
+        <div class="quotes-grid">
+            {% if quotes %}
+                {% for quote in quotes %}
+                <div class="quote-preview-card">
+                    <div class="compare-checkbox-wrapper" onclick="event.stopPropagation()">
+                        <input type="checkbox"
+                               class="compare-checkbox"
+                               data-quote-id="{{ quote.id }}"
+                               onchange="handleCompareSelection(this)">
+                        <label>Compare</label>
+                    </div>
+                    <div class="quote-card-content" onclick="window.location.href='/quote/{{ quote.id }}'">
+                        <div class="quote-header">
+                            <div class="vendor-badge {{ quote.vendor|lower }}">{{ quote.vendor }}</div>
+                            <div class="quote-id">{{ quote.quote_id }}</div>
+                        </div>
+                        <h3>{{ quote.customer_name or 'N/A' }}</h3>
+                        <div class="quote-metadata">
+                            <div class="metadata-item">
+                                <span class="metadata-label">Tenant:</span>
+                                <span class="metadata-value">{{ quote.tenant_name or 'N/A' }}</span>
+                            </div>
+                            <div class="metadata-item">
+                                <span class="metadata-label">Project:</span>
+                                <span class="metadata-value">{{ quote.project_name or 'N/A' }}</span>
+                            </div>
+                            <div class="metadata-item">
+                                <span class="metadata-label">ICA:</span>
+                                <span class="metadata-value">{{ quote.ica or 'N/A' }}</span>
+                            </div>
+                            <div class="metadata-item">
+                                <span class="metadata-label">Expires:</span>
+                                <span class="metadata-value">{{ quote.expiry_date or 'N/A' }}</span>
+                            </div>
+                        </div>
+                        <p class="description">{{ quote.description }}</p>
+                        <div class="quote-footer">
+                            <span class="date">Quote Date: {{ quote.quote_date }}</span>
+                            <span class="price">{{ quote.currency }} {{ '{:,.2f}'.format(quote.total_amount) }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <p>No quotes uploaded yet. Upload a PDF quote to get started.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        // File upload functionality
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const fileInput = document.getElementById('fileInput');
+            const statusDiv = document.getElementById('uploadStatus');
+
+            if (!fileInput.files.length) {
+                statusDiv.innerHTML = '<div class="error">Please select a file</div>';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('tenant_name', document.getElementById('tenantName').value);
+            formData.append('project_name', document.getElementById('projectName').value);
+            formData.append('ica', document.getElementById('ica').value);
+
+            statusDiv.innerHTML = '<div class="loading">Parsing PDF...</div>';
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    statusDiv.innerHTML = '<div class="success">Quote parsed successfully!</div>';
+                    setTimeout(() => {
+                        window.location.href = result.redirect;
+                    }, 1000);
+                } else {
+                    statusDiv.innerHTML = `<div class="error">Error: ${result.error}</div>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        });
+
+        // Compare functionality
+        const selectedQuotes = new Set();
+        const MAX_SELECTION = 2;
+
+        function handleCompareSelection(checkbox) {
+            const quoteId = parseInt(checkbox.dataset.quoteId);
+
+            if (checkbox.checked) {
+                if (selectedQuotes.size >= MAX_SELECTION) {
+                    // Prevent selection beyond limit
+                    checkbox.checked = false;
+                    alert(`You can only compare ${MAX_SELECTION} quotes at a time`);
+                    return;
+                }
+                selectedQuotes.add(quoteId);
+            } else {
+                selectedQuotes.delete(quoteId);
+            }
+
+            updateCompareButton();
+            updateCheckboxStates();
+        }
+
+        function updateCompareButton() {
+            const compareBtn = document.getElementById('compareButton');
+            const compareActionBtn = document.getElementById('compareActionBtn');
+            const countSpan = document.querySelector('.compare-count');
+
+            const count = selectedQuotes.size;
+            countSpan.textContent = count;
+
+            if (count > 0) {
+                compareBtn.style.display = 'flex';
+            } else {
+                compareBtn.style.display = 'none';
+            }
+
+            // Enable button only when exactly 2 selected
+            compareActionBtn.disabled = (count !== 2);
+        }
+
+        function updateCheckboxStates() {
+            const allCheckboxes = document.querySelectorAll('.compare-checkbox');
+            const atLimit = selectedQuotes.size >= MAX_SELECTION;
+
+            allCheckboxes.forEach(checkbox => {
+                const quoteId = parseInt(checkbox.dataset.quoteId);
+                if (!checkbox.checked && atLimit) {
+                    checkbox.disabled = true;
+                } else {
+                    checkbox.disabled = false;
+                }
+            });
+        }
+
+        function navigateToCompare() {
+            if (selectedQuotes.size !== 2) return;
+
+            const ids = Array.from(selectedQuotes).sort((a, b) => a - b);
+            window.location.href = `/compare?ids=${ids.join(',')}`;
+        }
+    </script>
+</body>
+</html>

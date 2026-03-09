@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project List - Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="projects-content">
+        <div class="admin-content-header">
+            <h1>All Projects by Tenant</h1>
+            <a href="/admin/projects/new" class="btn-primary">+ Add Project</a>
+        </div>
+
+        {% if tenant_projects %}
+            {% for tenant in tenant_projects %}
+            <div class="tenant-project-group">
+                <div class="tenant-group-header">
+                    <div class="tenant-group-title">
+                        <h2>🏢 {{ tenant.name }}</h2>
+                        <span class="tenant-group-count">{{ tenant.project_count }} projects</span>
+                    </div>
+                    <span class="status-badge status-{{ tenant.status }}">{{ tenant.status }}</span>
+                </div>
+
+                {% if tenant.projects %}
+                <div class="projects-grid">
+                    {% for project in tenant.projects %}
+                    <div class="project-card" onclick="window.parent.loadProjectQuotes({{ project.id }}, '{{ project.name }}', {{ tenant.id }}, '{{ tenant.name }}')">
+                        <div class="project-card-header">
+                            <div class="project-card-icon">📁</div>
+                            <span class="status-badge status-{{ project.status }}">{{ project.status }}</span>
+                        </div>
+                        <h3>{{ project.name }}</h3>
+                        {% if project.description %}
+                        <p class="project-card-description">{{ project.description }}</p>
+                        {% else %}
+                        <p class="project-card-description empty">No description</p>
+                        {% endif %}
+                        <div class="project-card-footer">
+                            <div class="project-card-stats">
+                                <span class="stat-item">
+                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M3 2H9L11 4V12H3V2Z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                                    </svg>
+                                    {{ project.quote_count }} quotes
+                                </span>
+                            </div>
+                            <span class="project-card-date">{{ project.created_at[:10] }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="tenant-empty-projects">
+                    <p>No projects for this tenant yet.</p>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="empty-state">
+            <h3>No Projects Found</h3>
+            <p>No tenants or projects exist yet. Create a tenant and project to get started.</p>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

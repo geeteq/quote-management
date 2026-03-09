@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Tenant - Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="admin-form-page">
+        <div class="admin-form-container">
+            <div class="admin-form-header">
+                <h1>Add New Tenant</h1>
+                <a href="/admin" class="back-link">← Back to Admin</a>
+            </div>
+
+            <form id="tenantForm" class="admin-form">
+                <div class="form-group">
+                    <label for="tenantName">Tenant Name <span class="required">*</span></label>
+                    <input
+                        type="text"
+                        id="tenantName"
+                        name="tenant_name"
+                        placeholder="Enter tenant name"
+                        required
+                        autofocus>
+                </div>
+
+                <div id="formStatus"></div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Save Tenant</button>
+                    <a href="/admin" class="btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('tenantForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const tenantName = document.getElementById('tenantName').value.trim();
+            const statusDiv = document.getElementById('formStatus');
+
+            if (!tenantName) {
+                statusDiv.innerHTML = '<div class="error">Tenant name is required</div>';
+                return;
+            }
+
+            // Disable form during submission
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Saving...';
+
+            statusDiv.innerHTML = '<div class="loading">Creating tenant...</div>';
+
+            try {
+                const formData = new FormData();
+                formData.append('tenant_name', tenantName);
+
+                const response = await fetch('/admin/tenants/create', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    statusDiv.innerHTML = '<div class="success">Tenant created successfully!</div>';
+                    setTimeout(() => {
+                        window.location.href = '/admin';
+                    }, 1000);
+                } else {
+                    statusDiv.innerHTML = `<div class="error">Error: ${result.error}</div>`;
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Save Tenant';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Save Tenant';
+            }
+        });
+    </script>
+</body>
+</html>

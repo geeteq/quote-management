@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ data.quote.quote_id }} - Quote Details</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .quote-split-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Top navigation */
+        .quote-nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 100;
+        }
+
+        .quote-nav h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .nav-back {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+
+        .nav-back:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        /* Split layout */
+        .quote-split-grid {
+            display: grid;
+            grid-template-columns: 50% 50%;
+            height: calc(100vh - 60px);
+            gap: 0;
+        }
+
+        .quote-split-section {
+            border: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .section-header {
+            background: #f5f5f5;
+            padding: 10px 20px;
+            border-bottom: 2px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-header h2 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .section-type {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+        }
+
+        /* Parsed data section */
+        .parsed-section {
+            background: white;
+            overflow-y: auto;
+        }
+
+        .parsed-content {
+            padding: 20px;
+        }
+
+        /* PDF viewer section */
+        .pdf-section {
+            background: #2b2b2b;
+        }
+
+        .pdf-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #2b2b2b;
+        }
+
+        /* Quote header in parsed section */
+        .quote-header-compact {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .quote-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .vendor-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: rgba(255,255,255,0.2);
+        }
+
+        .quote-id-large {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .total-price-compact {
+            text-align: right;
+        }
+
+        .total-label {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .total-amount {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .quote-metadata-compact {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .metadata-item-compact {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .metadata-label-compact {
+            font-size: 11px;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metadata-value-compact {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        /* Category sections */
+        .category-section {
+            margin-bottom: 20px;
+        }
+
+        .category-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 15px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .item-count {
+            font-size: 11px;
+            background: rgba(255,255,255,0.2);
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+
+        .component-item-split {
+            background: #f8f9fa;
+            border-left: 3px solid #667eea;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+
+        .component-header-split {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .component-qty-badge {
+            background: #667eea;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .component-description {
+            flex: 1;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            line-height: 1.4;
+        }
+
+        .component-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .meta-badge {
+            background: white;
+            border: 1px solid #e0e0e0;
+            padding: 3px 8px;
+            border-radius: 3px;
+        }
+
+        .component-specs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .spec-badge {
+            background: white;
+            border: 1px solid #e0e0e0;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .spec-key {
+            color: #666;
+        }
+
+        .spec-value {
+            color: #333;
+            font-weight: 600;
+            margin-left: 4px;
+        }
+
+        /* Scrollbar styling */
+        .parsed-section::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .parsed-section::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .parsed-section::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        .parsed-section::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Additional metadata badges */
+        .quote-extra-metadata {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .extra-meta-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        .extra-meta-label {
+            opacity: 0.8;
+            margin-right: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="quote-split-container">
+        <!-- Top Navigation -->
+        <div class="quote-nav">
+            <a href="/" class="nav-back">← Back to All Quotes</a>
+            <h1>Quote Details - Split View</h1>
+            <div style="width: 120px;"></div>
+        </div>
+
+        <!-- Split Grid: Left = Parsed, Right = PDF -->
+        <div class="quote-split-grid">
+            <!-- Left: Parsed Data -->
+            <div class="quote-split-section parsed-section">
+                <div class="section-header">
+                    <h2>Parsed Quote Data</h2>
+                    <span class="section-type">Extracted Information</span>
+                </div>
+                <div class="parsed-content">
+                    <!-- Quote Header -->
+                    <div class="quote-header-compact">
+                        <div class="quote-header-top">
+                            <div>
+                                <div class="vendor-badge">{{ data.quote.vendor }}</div>
+                                <div class="quote-id-large">{{ data.quote.quote_id }}</div>
+                            </div>
+                            <div class="total-price-compact">
+                                <div class="total-label">Total Amount</div>
+                                <div class="total-amount">{{ data.quote.currency }} {{ '{:,.2f}'.format(data.quote.total_amount) }}</div>
+                            </div>
+                        </div>
+
+                        <div class="quote-metadata-compact">
+                            <div class="metadata-item-compact">
+                                <span class="metadata-label-compact">Customer</span>
+                                <span class="metadata-value-compact">{{ data.quote.customer_name or 'N/A' }}</span>
+                            </div>
+                            <div class="metadata-item-compact">
+                                <span class="metadata-label-compact">Quote Date</span>
+                                <span class="metadata-value-compact">{{ data.quote.quote_date or 'N/A' }}</span>
+                            </div>
+                            <div class="metadata-item-compact">
+                                <span class="metadata-label-compact">Expiry Date</span>
+                                <span class="metadata-value-compact">{{ data.quote.expiry_date or 'N/A' }}</span>
+                            </div>
+                            <div class="metadata-item-compact">
+                                <span class="metadata-label-compact">Description</span>
+                                <span class="metadata-value-compact">{{ data.quote.description or 'N/A' }}</span>
+                            </div>
+                        </div>
+
+                        {% if data.quote.tenant_name or data.quote.project_name or data.quote.ica %}
+                        <div class="quote-extra-metadata">
+                            {% if data.quote.tenant_name %}
+                            <div class="extra-meta-badge">
+                                <span class="extra-meta-label">Tenant:</span>
+                                <strong>{{ data.quote.tenant_name }}</strong>
+                            </div>
+                            {% endif %}
+                            {% if data.quote.project_name %}
+                            <div class="extra-meta-badge">
+                                <span class="extra-meta-label">Project:</span>
+                                <strong>{{ data.quote.project_name }}</strong>
+                            </div>
+                            {% endif %}
+                            {% if data.quote.ica %}
+                            <div class="extra-meta-badge">
+                                <span class="extra-meta-label">ICA:</span>
+                                <strong>{{ data.quote.ica }}</strong>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Components by Category -->
+                    {% set category_order = ['CPU', 'Memory', 'Disk', 'Storage Controller', 'Network Card', 'Power Supply', 'GPU', 'Additional Hardware'] %}
+
+                    {% for category in category_order %}
+                        {% if category in data.categories %}
+                        <div class="category-section">
+                            <div class="category-header">
+                                <span>{{ category }}</span>
+                                <span class="item-count">{{ data.categories[category]|length }} item(s)</span>
+                            </div>
+
+                            {% for item in data.categories[category] %}
+                            <div class="component-item-split">
+                                <div class="component-header-split">
+                                    <span class="component-qty-badge">{{ item.quantity }}×</span>
+                                    <div class="component-description">{{ item.description }}</div>
+                                </div>
+
+                                <div class="component-meta">
+                                    <span class="meta-badge">Part: {{ item.product_number }}</span>
+                                    {% if item.manufacturer %}
+                                    <span class="meta-badge">{{ item.manufacturer }}</span>
+                                    {% endif %}
+                                    {% if item.delivery_time %}
+                                    <span class="meta-badge">Delivery: {{ item.delivery_time }}</span>
+                                    {% endif %}
+                                </div>
+
+                                {% if item.specs and item.specs|length > 0 %}
+                                <div class="component-specs">
+                                    {% for key, value in item.specs.items() %}
+                                        {% if value and key not in ['model', 'manufacturer'] %}
+                                        <span class="spec-badge">
+                                            <span class="spec-key">{{ key.replace('_', ' ').title() }}:</span>
+                                            <span class="spec-value">{{ value }}</span>
+                                        </span>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Right: PDF Viewer -->
+            <div class="quote-split-section pdf-section">
+                <div class="section-header">
+                    <h2>Original Quote PDF</h2>
+                    <span class="section-type">Vendor Document</span>
+                </div>
+                <iframe
+                    src="{{ url_for('serve_pdf', quote_id=data.quote.id) }}"
+                    class="pdf-frame"
+                    title="Quote PDF">
+                </iframe>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

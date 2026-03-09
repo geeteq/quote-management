@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quote Management System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Admin Button (Top Right) -->
+    <a href="/admin" class="admin-button" title="Admin Dashboard">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10 2C5.58 2 2 5.58 2 10C2 14.42 5.58 18 10 18C14.42 18 18 14.42 18 10C18 5.58 14.42 2 10 2ZM10 4C11.1 4 12 4.9 12 6C12 7.1 11.1 8 10 8C8.9 8 8 7.1 8 6C8 4.9 8.9 4 10 4ZM10 16C8 16 6.3 14.9 5.4 13.2C5.5 11.4 9 10.4 10 10.4C11 10.4 14.5 11.4 14.6 13.2C13.7 14.9 12 16 10 16Z" fill="currentColor"/>
+        </svg>
+        Admin
+    </a>
+
+    <div class="main-layout">
+        <!-- Left Navigation Pane -->
+        <aside class="nav-sidebar">
+            <div class="nav-header">
+                <h1>Server Quotes</h1>
+                <p class="nav-subtitle">Navigate by project</p>
+            </div>
+
+            <div class="nav-divider"></div>
+
+            <!-- Upload Section in Sidebar -->
+            <div class="sidebar-upload">
+                <button class="btn-upload" onclick="showUploadModal()">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 2L8 12M8 2L4 6M8 2L12 6M2 14L14 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Upload Quote
+                </button>
+            </div>
+
+            <!-- Navigation Tree -->
+            <nav class="nav-tree">
+                <div class="nav-section">
+                    <h2 class="nav-tree-header">Quotes</h2>
+
+                    <!-- Unassigned Quotes -->
+                    <div class="nav-item" onclick="loadUnassignedQuotes()">
+                        <span class="nav-icon">📄</span>
+                        <span class="nav-label">Unassigned</span>
+                        <span class="nav-count" id="unassignedCount">0</span>
+                    </div>
+
+                    <!-- Tenants/Projects Tree -->
+                    <div id="navigationTree">
+                        <div class="nav-loading">Loading...</div>
+                    </div>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Right Content Pane -->
+        <main class="content-pane">
+            <div class="content-header">
+                <div>
+                    <h1 id="contentTitle">Welcome</h1>
+                    <p id="contentSubtitle">Select a project to view quotes</p>
+                </div>
+            </div>
+
+            <div id="quotesContent" class="quotes-content">
+                <div class="welcome-message">
+                    <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M20 60L60 60L60 20L20 20L20 60ZM25 55L25 25L55 25L55 55L25 55ZM30 35L50 35M30 40L50 40M30 45L50 45" stroke="#667eea" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    <h2>Get Started</h2>
+                    <p>Select a project from the left to view its quotes, or upload a new quote to begin.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Upload New Quote</h2>
+                <button class="modal-close" onclick="closeUploadModal()">&times;</button>
+            </div>
+
+            <form id="uploadForm" enctype="multipart/form-data">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="tenantSelect">Tenant <span class="required">*</span></label>
+                        <select id="tenantSelect" name="tenant_id" required>
+                            <option value="">Select tenant...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="projectSelect">Project <span class="required">*</span></label>
+                        <select id="projectSelect" name="project_id" required>
+                            <option value="">Select project...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="ica">ICA</label>
+                        <input type="text" id="ica" name="ica" placeholder="Enter ICA">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="fileInput">Quote PDF <span class="required">*</span></label>
+                    <input type="file" id="fileInput" name="file" accept=".pdf" required>
+                </div>
+                <div id="uploadStatus"></div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Upload & Parse</button>
+                    <button type="button" class="btn-secondary" onclick="closeUploadModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let navigationData = [];
+        let selectedProjectId = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadNavigationTree();
+            loadTenantsForUpload();
+        });
+
+        // Load navigation hierarchy
+        async function loadNavigationTree() {
+            try {
+                const response = await fetch('/api/navigation/hierarchy');
+                navigationData = await response.json();
+                renderNavigationTree();
+                updateUnassignedCount();
+            } catch (error) {
+                console.error('Error loading navigation:', error);
+                document.getElementById('navigationTree').innerHTML =
+                    '<div class="nav-error">Error loading navigation</div>';
+            }
+        }
+
+        // Render navigation tree
+        function renderNavigationTree() {
+            const container = document.getElementById('navigationTree');
+
+            if (navigationData.length === 0) {
+                container.innerHTML = '<div class="nav-empty">No tenants found. Create one in Admin.</div>';
+                return;
+            }
+
+            let html = '';
+            navigationData.forEach(tenant => {
+                html += `
+                    <div class="nav-tenant">
+                        <div class="nav-tenant-header" onclick="toggleTenant(${tenant.id})">
+                            <span class="nav-expand" id="expand-${tenant.id}">▶</span>
+                            <span class="nav-icon">🏢</span>
+                            <span class="nav-label">${tenant.name}</span>
+                            <span class="nav-count">${tenant.project_count}</span>
+                        </div>
+                        <div class="nav-tenant-projects" id="projects-${tenant.id}" style="display: none;">
+                            ${renderProjects(tenant.projects)}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // Render projects for a tenant
+        function renderProjects(projects) {
+            if (!projects || projects.length === 0) {
+                return '<div class="nav-empty-projects">No projects</div>';
+            }
+
+            return projects.map(project => `
+                <div class="nav-project ${selectedProjectId === project.id ? 'active' : ''}"
+                     onclick="loadProjectQuotes(${project.id}, '${project.name}', event)">
+                    <span class="nav-icon">📁</span>
+                    <span class="nav-label">${project.name}</span>
+                    <span class="nav-count">${project.quote_count}</span>
+                </div>
+            `).join('');
+        }
+
+        // Toggle tenant expansion
+        function toggleTenant(tenantId) {
+            const projectsDiv = document.getElementById(`projects-${tenantId}`);
+            const expandIcon = document.getElementById(`expand-${tenantId}`);
+
+            if (projectsDiv.style.display === 'none') {
+                projectsDiv.style.display = 'block';
+                expandIcon.textContent = '▼';
+            } else {
+                projectsDiv.style.display = 'none';
+                expandIcon.textContent = '▶';
+            }
+        }
+
+        // Load quotes for a project
+        async function loadProjectQuotes(projectId, projectName, event) {
+            event.stopPropagation();
+            selectedProjectId = projectId;
+
+            // Update active state
+            document.querySelectorAll('.nav-project').forEach(el => el.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+
+            // Update header
+            document.getElementById('contentTitle').textContent = projectName;
+            document.getElementById('contentSubtitle').textContent = 'Project Quotes';
+
+            // Load quotes
+            const content = document.getElementById('quotesContent');
+            content.innerHTML = '<div class="loading">Loading quotes...</div>';
+
+            try {
+                const response = await fetch(`/api/projects/${projectId}/quotes`);
+                const quotes = await response.json();
+                renderQuotes(quotes);
+            } catch (error) {
+                content.innerHTML = `<div class="error">Error loading quotes: ${error.message}</div>`;
+            }
+        }
+
+        // Load unassigned quotes
+        async function loadUnassignedQuotes() {
+            selectedProjectId = null;
+            document.querySelectorAll('.nav-project').forEach(el => el.classList.remove('active'));
+
+            document.getElementById('contentTitle').textContent = 'Unassigned Quotes';
+            document.getElementById('contentSubtitle').textContent = 'Quotes not assigned to any project';
+
+            const content = document.getElementById('quotesContent');
+            content.innerHTML = '<div class="loading">Loading quotes...</div>';
+
+            try {
+                const response = await fetch('/api/quotes/unassigned');
+                const quotes = await response.json();
+                renderQuotes(quotes);
+            } catch (error) {
+                content.innerHTML = `<div class="error">Error loading quotes: ${error.message}</div>`;
+            }
+        }
+
+        // Update unassigned count
+        async function updateUnassignedCount() {
+            try {
+                const response = await fetch('/api/quotes/unassigned');
+                const quotes = await response.json();
+                document.getElementById('unassignedCount').textContent = quotes.length;
+            } catch (error) {
+                console.error('Error updating unassigned count:', error);
+            }
+        }
+
+        // Render quotes as cards
+        function renderQuotes(quotes) {
+            const content = document.getElementById('quotesContent');
+
+            if (quotes.length === 0) {
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <p>No quotes found for this project.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const html = quotes.map(quote => `
+                <div class="quote-card-mini" onclick="window.location.href='/quote/${quote.id}'">
+                    <div class="quote-card-header">
+                        <div class="vendor-badge ${quote.vendor.toLowerCase()}">${quote.vendor}</div>
+                        <div class="quote-id">${quote.quote_id}</div>
+                    </div>
+                    <h3>${quote.customer_name || 'N/A'}</h3>
+                    <div class="quote-metadata">
+                        <div class="metadata-item">
+                            <span class="metadata-label">Date:</span>
+                            <span class="metadata-value">${quote.quote_date || 'N/A'}</span>
+                        </div>
+                        <div class="metadata-item">
+                            <span class="metadata-label">Expires:</span>
+                            <span class="metadata-value">${quote.expiry_date || 'N/A'}</span>
+                        </div>
+                        ${quote.ica ? `
+                        <div class="metadata-item">
+                            <span class="metadata-label">ICA:</span>
+                            <span class="metadata-value">${quote.ica}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                    <p class="description">${quote.description || ''}</p>
+                    <div class="quote-footer">
+                        <span class="price">${quote.currency} ${parseFloat(quote.total_amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    </div>
+                </div>
+            `).join('');
+
+            content.innerHTML = `<div class="quotes-grid-mini">${html}</div>`;
+        }
+
+        // Upload Modal Functions
+        function showUploadModal() {
+            document.getElementById('uploadModal').style.display = 'flex';
+        }
+
+        function closeUploadModal() {
+            document.getElementById('uploadModal').style.display = 'none';
+            document.getElementById('uploadForm').reset();
+            document.getElementById('uploadStatus').innerHTML = '';
+        }
+
+        // Load tenants for upload form
+        async function loadTenantsForUpload() {
+            try {
+                const response = await fetch('/api/admin/tenants');
+                const tenants = await response.json();
+
+                const select = document.getElementById('tenantSelect');
+                tenants.forEach(tenant => {
+                    const option = document.createElement('option');
+                    option.value = tenant.id;
+                    option.textContent = tenant.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading tenants:', error);
+            }
+        }
+
+        // Handle tenant selection change
+        document.getElementById('tenantSelect')?.addEventListener('change', async (e) => {
+            const tenantId = e.target.value;
+            const projectSelect = document.getElementById('projectSelect');
+            projectSelect.innerHTML = '<option value="">Select project...</option>';
+
+            if (!tenantId) return;
+
+            // Find tenant's projects from navigation data
+            const tenant = navigationData.find(t => t.id == tenantId);
+            if (tenant && tenant.projects) {
+                tenant.projects.forEach(project => {
+                    const option = document.createElement('option');
+                    option.value = project.id;
+                    option.textContent = project.name;
+                    projectSelect.appendChild(option);
+                });
+            }
+        });
+
+        // Handle upload form submission
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData(e.target);
+            const statusDiv = document.getElementById('uploadStatus');
+
+            statusDiv.innerHTML = '<div class="loading">Uploading and parsing PDF...</div>';
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    statusDiv.innerHTML = '<div class="success">Quote uploaded successfully!</div>';
+                    setTimeout(() => {
+                        closeUploadModal();
+                        loadNavigationTree();
+                        updateUnassignedCount();
+                    }, 1500);
+                } else {
+                    statusDiv.innerHTML = `<div class="error">Error: ${result.error}</div>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>
