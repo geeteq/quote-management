@@ -161,7 +161,10 @@ class QuoteParser:
         # Description
         desc_match = re.search(r'In reply to your request:\s*([^\n]+)', text)
         if desc_match:
-            self.quote_data['description'] = desc_match.group(1).strip()
+            desc = desc_match.group(1).strip()
+            # Ignore if captured text is just the expiry date line
+            if not re.match(r'Expires On:', desc, re.I):
+                self.quote_data['description'] = desc
 
     def _parse_dell_header(self):
         """Extract Dell quote header information."""
