@@ -356,6 +356,7 @@ CREATE TABLE IF NOT EXISTS quotes (
     tenant_name TEXT,
     project_name TEXT,
     ica TEXT,
+    po_comments TEXT CHECK(length(po_comments) <= 255),
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status TEXT DEFAULT 'active',
     FOREIGN KEY (tenant_id) REFERENCES tenants(id),

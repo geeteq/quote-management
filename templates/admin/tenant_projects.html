@@ -78,6 +78,12 @@
                                 <span class="metadata-value">{{ quote.description }}</span>
                             </div>
                             {% endif %}
+                            {% if quote.po_comments %}
+                            <div class="metadata-item">
+                                <span class="metadata-label">PO Comments:</span>
+                                <span class="metadata-value">{{ quote.po_comments }}</span>
+                            </div>
+                            {% endif %}
                         </div>
                         <div class="quote-footer">
                             <span class="date">Uploaded: {{ quote.uploaded_at[:10] if quote.uploaded_at else 'N/A' }}</span>

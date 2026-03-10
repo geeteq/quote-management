@@ -206,11 +206,18 @@ def migrate_db():
             db.execute("PRAGMA foreign_keys=ON")
             db.commit()
             logger.info("Migration: tenants.status CHECK constraint updated to include 'archived'")
+
+        # Migration: add po_comments column to quotes
+        existing_cols = {r[1] for r in db.execute("PRAGMA table_info(quotes)")}
+        if 'po_comments' not in existing_cols:
+            db.execute("ALTER TABLE quotes ADD COLUMN po_comments TEXT CHECK(length(po_comments) <= 255)")
+            db.commit()
+            logger.info("Migration: added po_comments column to quotes")
     finally:
         db.close()
 
 
-def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_id=None, tenant_name='', project_name='', ica=''):
+def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_id=None, tenant_name='', project_name='', ica='', po_comments=''):
     """Save parsed quote data to database."""
     logger.debug(f"Saving quote: {quote_data.get('quote_id')} with {len(line_items)} items")
 
@@ -230,8 +237,8 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
         cursor.execute('''
             INSERT INTO quotes (quote_id, vendor, customer_name, quote_date, expiry_date,
                                total_amount, currency, description, pdf_path,
-                               tenant_id, project_id, tenant_name, project_name, ica)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               tenant_id, project_id, tenant_name, project_name, ica, po_comments)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             quote_id,
             quote_data.get('vendor'),
@@ -246,7 +253,8 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
             project_id,
             tenant_name,
             project_name,
-            ica
+            ica,
+            po_comments[:255] if po_comments else None
         ))
 
         quote_db_id = cursor.lastrowid
@@ -473,7 +481,7 @@ def get_all_quotes():
     db = get_db()
     quotes = db.execute('''
         SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-               total_amount, currency, description, tenant_name, project_name, ica, status
+               total_amount, currency, description, tenant_name, project_name, ica, status, po_comments
         FROM quotes
         WHERE status != 'archived'
         ORDER BY uploaded_at DESC
@@ -529,6 +537,7 @@ def upload_quote():
         tenant_id = request.form.get('tenant_id', '').strip()
         project_id = request.form.get('project_id', '').strip()
         ica = request.form.get('ica', '').strip()
+        po_comments = request.form.get('po_comments', '').strip()
 
         tenant_id = int(tenant_id) if tenant_id else None
         project_id = int(project_id) if project_id else None
@@ -579,7 +588,8 @@ def upload_quote():
             project_id=project_id,
             tenant_name=tenant_name,
             project_name=project_name,
-            ica=ica
+            ica=ica,
+            po_comments=po_comments
         )
 
         logger.info(f"Quote saved successfully with ID: {quote_db_id}")
@@ -884,7 +894,7 @@ def api_project_quotes(project_id):
     db = get_db()
     quotes = db.execute('''
         SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-               total_amount, currency, description, tenant_name, project_name, ica, status
+               total_amount, currency, description, tenant_name, project_name, ica, status, po_comments
         FROM quotes
         WHERE project_id = ? AND status != 'archived'
         ORDER BY quote_date DESC
@@ -899,7 +909,7 @@ def api_unassigned_quotes():
     db = get_db()
     quotes = db.execute('''
         SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-               total_amount, currency, description, tenant_name, project_name, ica, status
+               total_amount, currency, description, tenant_name, project_name, ica, status, po_comments
         FROM quotes
         WHERE project_id IS NULL AND status != 'archived'
         ORDER BY quote_date DESC
@@ -950,7 +960,7 @@ def admin_quotes():
     db = get_db()
     quotes = db.execute("""
         SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-               total_amount, currency, tenant_name, project_name, ica, uploaded_at, status
+               total_amount, currency, tenant_name, project_name, ica, uploaded_at, status, po_comments
         FROM quotes
         ORDER BY uploaded_at DESC
     """).fetchall()
@@ -1056,7 +1066,7 @@ def admin_tenant_projects(tenant_id):
         # Get quotes for this project
         quotes = db.execute('''
             SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-                   total_amount, currency, description, ica, uploaded_at
+                   total_amount, currency, description, ica, uploaded_at, po_comments
             FROM quotes
             WHERE project_id = ?
             ORDER BY uploaded_at DESC
@@ -1090,7 +1100,7 @@ def admin_project_quotes(project_id):
     # Get project's quotes
     quotes = db.execute('''
         SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-               total_amount, currency, description, ica, uploaded_at
+               total_amount, currency, description, ica, uploaded_at, po_comments
         FROM quotes
         WHERE project_id = ?
         ORDER BY quote_date DESC

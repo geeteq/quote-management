@@ -135,6 +135,12 @@
                     </div>
                 </div>
                 <div class="form-group">
+                    <label for="po_comments">PO Comments</label>
+                    <textarea id="po_comments" name="po_comments" maxlength="255"
+                              placeholder="Optional purchase order comments (max 255 chars)"
+                              rows="2" style="resize:vertical;"></textarea>
+                </div>
+                <div class="form-group">
                     <label for="fileInput">Quote PDF <span class="required">*</span></label>
                     <input type="file" id="fileInput" name="file" accept=".pdf" required>
                 </div>
@@ -403,6 +409,12 @@
                             <span class="metadata-value">${quote.description}</span>
                         </div>
                         ` : ''}
+                        ${quote.po_comments ? `
+                        <div class="metadata-item">
+                            <span class="metadata-label">PO Comments:</span>
+                            <span class="metadata-value">${quote.po_comments}</span>
+                        </div>
+                        ` : ''}
                     </div>
                     <div class="quote-footer">
                         <button class="btn-archive" onclick="event.stopPropagation(); archiveQuote(${quote.id})" title="Archive quote">
@@ -524,7 +536,7 @@
                 const q = query.toLowerCase();
                 const results = quotes.filter(quote =>
                     [quote.quote_id, quote.vendor, quote.customer_name,
-                     quote.tenant_name, quote.project_name, quote.ica, quote.description]
+                     quote.tenant_name, quote.project_name, quote.ica, quote.description, quote.po_comments]
                     .some(v => v && v.toLowerCase().includes(q))
                 );
 
@@ -561,6 +573,7 @@
                                 ${quote.project_name ? `<div class="metadata-item"><span class="metadata-label">Project:</span><span class="metadata-value">${quote.project_name}</span></div>` : ''}
                                 <div class="metadata-item"><span class="metadata-label">Date:</span><span class="metadata-value">${quote.quote_date || 'N/A'}</span></div>
                                 ${quote.ica ? `<div class="metadata-item"><span class="metadata-label">ICA:</span><span class="metadata-value">${quote.ica}</span></div>` : ''}
+                                ${quote.po_comments ? `<div class="metadata-item"><span class="metadata-label">PO Comments:</span><span class="metadata-value">${quote.po_comments}</span></div>` : ''}
                             </div>
                             <div class="quote-footer">
                                 <span class="price">${quote.currency} ${parseFloat(quote.total_amount||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
