@@ -202,11 +202,7 @@
         async function archiveQuote(id) {
             if (!confirm('Archive this quote? It will no longer appear in the quote list.')) return;
             const resp = await fetch(`${BASE}/api/quotes/${id}/archive`, { method: 'POST' });
-            if (resp.ok) {
-                // Reload current project/unassigned view
-                const active = document.querySelector('.nav-item.active');
-                if (active) active.click();
-            }
+            if (resp.ok) window.location.reload();
         }
 
         // Initialize
