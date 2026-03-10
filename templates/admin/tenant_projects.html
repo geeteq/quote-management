@@ -72,8 +72,13 @@
                                 <span class="metadata-value">{{ quote.ica }}</span>
                             </div>
                             {% endif %}
+                            {% if quote.description %}
+                            <div class="metadata-item">
+                                <span class="metadata-label">Description:</span>
+                                <span class="metadata-value">{{ quote.description }}</span>
+                            </div>
+                            {% endif %}
                         </div>
-                        <p class="description">{{ quote.description or 'No description available' }}</p>
                         <div class="quote-footer">
                             <span class="date">Uploaded: {{ quote.uploaded_at[:10] if quote.uploaded_at else 'N/A' }}</span>
                             <span class="price">{{ quote.currency }} {{ '{:,.2f}'.format(quote.total_amount) if quote.total_amount else '0.00' }}</span>

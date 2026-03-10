@@ -380,8 +380,13 @@
                             <span class="metadata-value">${quote.ica}</span>
                         </div>
                         ` : ''}
+                        ${quote.description ? `
+                        <div class="metadata-item">
+                            <span class="metadata-label">Description:</span>
+                            <span class="metadata-value">${quote.description}</span>
+                        </div>
+                        ` : ''}
                     </div>
-                    <p class="description">${quote.description || ''}</p>
                     <div class="quote-footer">
                         <span class="price">${quote.currency} ${parseFloat(quote.total_amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                     </div>

@@ -92,9 +92,13 @@
                             <div class="metadata-item">
                                 <span class="metadata-label">Expires:</span>
                                 <span class="metadata-value{% if quote.expiry_date | is_expired %} expired-date{% endif %}">{{ quote.expiry_date or 'N/A' }}</span>
+                            {% if quote.description %}
+                            <div class="metadata-item">
+                                <span class="metadata-label">Description:</span>
+                                <span class="metadata-value">{{ quote.description }}</span>
                             </div>
+                            {% endif %}
                         </div>
-                        <p class="description">{{ quote.description }}</p>
                         <div class="quote-footer">
                             <span class="date">Quote Date: {{ quote.quote_date }}</span>
                             <span class="price">{{ quote.currency }} {{ '{:,.2f}'.format(quote.total_amount) }}</span>
