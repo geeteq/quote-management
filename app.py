@@ -240,7 +240,7 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
             quote_data.get('expiry_date'),
             quote_data.get('total_amount'),
             quote_data.get('currency', 'CAD'),
-            quote_data.get('description'),
+            quote_data.get('description') or os.path.basename(pdf_path),
             pdf_path,
             tenant_id,
             project_id,
