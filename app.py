@@ -31,7 +31,8 @@ app.config['UPLOAD_FOLDER'] = os.path.join(DATA_DIR, 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['DATABASE'] = os.path.join(DATA_DIR, 'quotes.db')
 
-BASE_HREF = '/quotes/'
+_base = os.environ.get('BASE_URL', '/quotes').rstrip('/')
+BASE_HREF = _base + '/'
 
 
 @app.context_processor
