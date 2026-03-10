@@ -601,27 +601,27 @@ button:hover {
 .memory-calculation {
     margin-top: 12px;
     padding: 10px 15px;
-    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
-    border-left: 4px solid #4caf50;
+    background: #f1f5f9;
+    border-left: 4px solid #94a3b8;
     border-radius: 6px;
 }
 
 .memory-calculation .calc-label {
     font-size: 0.85em;
-    color: #2e7d32;
+    color: #475569;
     font-weight: 600;
     margin-right: 8px;
 }
 
 .memory-calculation .calc-formula {
     font-size: 0.95em;
-    color: #1b5e20;
+    color: #334155;
     font-family: 'Courier New', monospace;
 }
 
 .memory-calculation .calc-formula strong {
     font-size: 1.1em;
-    color: #2e7d32;
+    color: #1e293b;
     font-weight: 700;
 }
 
