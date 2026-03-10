@@ -372,7 +372,7 @@
                         </div>
                         <div class="metadata-item">
                             <span class="metadata-label">Expires:</span>
-                            <span class="metadata-value">${quote.expiry_date || 'N/A'}</span>
+                            <span class="metadata-value${quote.expiry_date && quote.expiry_date < new Date().toISOString().split('T')[0] ? ' expired-date' : ''}">${quote.expiry_date || 'N/A'}</span>
                         </div>
                         ${quote.ica ? `
                         <div class="metadata-item">

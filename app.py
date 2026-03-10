@@ -37,7 +37,8 @@ BASE_HREF = _base + '/'
 
 @app.context_processor
 def inject_base_href():
-    return {'base_href': BASE_HREF}
+    from datetime import date
+    return {'base_href': BASE_HREF, 'today': date.today().isoformat()}
 
 
 ALLOWED_EXTENSIONS = {'pdf'}

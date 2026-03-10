@@ -243,6 +243,14 @@ button:hover {
     font-weight: 500;
 }
 
+.metadata-value.expired-date {
+    color: #b91c1c;
+    background: #fee2e2;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
 .description {
     font-size: 0.95em;
     color: #666;
