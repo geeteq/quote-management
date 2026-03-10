@@ -35,10 +35,22 @@ _base = os.environ.get('BASE_URL', '/quotes').rstrip('/')
 BASE_HREF = _base + '/'
 
 
+@app.template_filter('is_expired')
+def is_expired_filter(expiry_date):
+    if not expiry_date:
+        return False
+    from datetime import date, datetime
+    for fmt in ('%B %d, %Y', '%Y-%m-%d', '%m/%d/%Y'):
+        try:
+            return datetime.strptime(expiry_date, fmt).date() < date.today()
+        except ValueError:
+            continue
+    return False
+
+
 @app.context_processor
 def inject_base_href():
-    from datetime import date
-    return {'base_href': BASE_HREF, 'today': date.today().isoformat()}
+    return {'base_href': BASE_HREF}
 
 
 ALLOWED_EXTENSIONS = {'pdf'}

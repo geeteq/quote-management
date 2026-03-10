@@ -64,7 +64,7 @@
                             </div>
                             <div class="metadata-item">
                                 <span class="metadata-label">Expires:</span>
-                                <span class="metadata-value{% if quote.expiry_date and quote.expiry_date < today %} expired-date{% endif %}">{{ quote.expiry_date or 'N/A' }}</span>
+                                <span class="metadata-value{% if quote.expiry_date | is_expired %} expired-date{% endif %}">{{ quote.expiry_date or 'N/A' }}</span>
                             </div>
                             {% if quote.ica %}
                             <div class="metadata-item">
