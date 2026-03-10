@@ -1403,7 +1403,53 @@ button:hover {
     padding-top: 15px;
     border-top: 1px solid #f0f0f0;
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.btn-archive {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: #fff8f0;
+    color: #c27c0e;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    font-family: inherit;
+}
+
+.btn-archive:hover {
+    background: #c27c0e;
+    color: white;
+}
+
+.status-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.78em;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.status-pill.status-active {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-pill.status-archived {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.status-pill.status-inactive {
+    background: #f1f5f9;
+    color: #475569;
 }
 
 /* Upload Modal */

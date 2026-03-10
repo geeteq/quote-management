@@ -199,6 +199,16 @@
             updateCompareButton();
         }
 
+        async function archiveQuote(id) {
+            if (!confirm('Archive this quote? It will no longer appear in the quote list.')) return;
+            const resp = await fetch(`${BASE}/api/quotes/${id}/archive`, { method: 'POST' });
+            if (resp.ok) {
+                // Reload current project/unassigned view
+                const active = document.querySelector('.nav-item.active');
+                if (active) active.click();
+            }
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadNavigationTree();
@@ -388,6 +398,12 @@
                         ` : ''}
                     </div>
                     <div class="quote-footer">
+                        <button class="btn-archive" onclick="event.stopPropagation(); archiveQuote(${quote.id})" title="Archive quote">
+                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M1 2a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm0 5a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm5 1v1H6v1h4V9h-1V8H6zm0 0" fill="currentColor"/>
+                            </svg>
+                            Archive
+                        </button>
                         <span class="price">${quote.currency} ${parseFloat(quote.total_amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                     </div>
                 </div>

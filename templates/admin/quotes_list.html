@@ -35,6 +35,7 @@
                         <th>Project</th>
                         <th>ICA</th>
                         <th>Uploaded</th>
+                        <th>Status</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -53,6 +54,7 @@
                         <td>{{ q.project_name or '—' }}</td>
                         <td>{{ q.ica or '—' }}</td>
                         <td class="date-muted">{{ q.uploaded_at[:10] if q.uploaded_at else '—' }}</td>
+                        <td><span class="status-pill status-{{ q.status or 'active' }}">{{ q.status or 'active' }}</span></td>
                         <td onclick="event.stopPropagation()" style="white-space:nowrap">
                             <button class="btn-icon-delete"
                                     onclick="deleteQuote({{ q.id }}, '{{ q.quote_id }}')"

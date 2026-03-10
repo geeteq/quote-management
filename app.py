@@ -473,8 +473,9 @@ def get_all_quotes():
     db = get_db()
     quotes = db.execute('''
         SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-               total_amount, currency, description, tenant_name, project_name, ica
+               total_amount, currency, description, tenant_name, project_name, ica, status
         FROM quotes
+        WHERE status != 'archived'
         ORDER BY uploaded_at DESC
     ''').fetchall()
     db.close()
@@ -883,9 +884,9 @@ def api_project_quotes(project_id):
     db = get_db()
     quotes = db.execute('''
         SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-               total_amount, currency, description, tenant_name, project_name, ica
+               total_amount, currency, description, tenant_name, project_name, ica, status
         FROM quotes
-        WHERE project_id = ?
+        WHERE project_id = ? AND status != 'archived'
         ORDER BY quote_date DESC
     ''', (project_id,)).fetchall()
     db.close()
@@ -898,9 +899,9 @@ def api_unassigned_quotes():
     db = get_db()
     quotes = db.execute('''
         SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-               total_amount, currency, description, tenant_name, project_name, ica
+               total_amount, currency, description, tenant_name, project_name, ica, status
         FROM quotes
-        WHERE project_id IS NULL
+        WHERE project_id IS NULL AND status != 'archived'
         ORDER BY quote_date DESC
     ''').fetchall()
     db.close()
@@ -949,7 +950,7 @@ def admin_quotes():
     db = get_db()
     quotes = db.execute("""
         SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-               total_amount, currency, tenant_name, project_name, ica, uploaded_at
+               total_amount, currency, tenant_name, project_name, ica, uploaded_at, status
         FROM quotes
         ORDER BY uploaded_at DESC
     """).fetchall()
@@ -974,6 +975,23 @@ def api_admin_quote_delete(quote_id):
                 os.remove(row['pdf_path'])
             except OSError:
                 pass
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+
+@app.route('/api/quotes/<int:quote_id>/archive', methods=['POST'])
+def api_quote_archive(quote_id):
+    """Archive a quote (hides it from the frontend)."""
+    db = get_db()
+    try:
+        row = db.execute("SELECT id FROM quotes WHERE id = ?", (quote_id,)).fetchone()
+        if not row:
+            return jsonify({'error': 'Quote not found'}), 404
+        db.execute("UPDATE quotes SET status = 'archived' WHERE id = ?", (quote_id,))
+        db.commit()
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
