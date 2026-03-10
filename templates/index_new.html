@@ -199,10 +199,21 @@
             updateCompareButton();
         }
 
+        async function refreshCurrentView() {
+            const content = document.getElementById('quotesContent');
+            if (selectedProjectId) {
+                const response = await fetch(`${BASE}/api/projects/${selectedProjectId}/quotes`);
+                renderQuotes(await response.json());
+            } else {
+                const response = await fetch(`${BASE}/api/quotes/unassigned`);
+                renderQuotes(await response.json());
+            }
+        }
+
         async function archiveQuote(id) {
             if (!confirm('Archive this quote? It will no longer appear in the quote list.')) return;
             const resp = await fetch(`${BASE}/api/quotes/${id}/archive`, { method: 'POST' });
-            if (resp.ok) window.location.reload();
+            if (resp.ok) refreshCurrentView();
         }
 
         // Initialize
