@@ -2011,17 +2011,42 @@ def admin_servers():
 
 @app.route('/api/catalog/components')
 def api_catalog_components():
-    """Return component_catalog entries filtered by component_type query param."""
+    """Return components of a given type that appear in at least one server spec.
+
+    For Network Card, applies an additional description filter so that stale
+    catalog entries (disks, bezel kits, etc. incorrectly stored as Network Card
+    from old parses) don't pollute the NIC picker dropdown.
+    """
     ctype = request.args.get('type', '')
     db = get_db()
     rows = db.execute("""
-        SELECT part_number, description, manufacturer
-        FROM component_catalog
-        WHERE component_type = ?
-        ORDER BY manufacturer, part_number
+        SELECT DISTINCT cc.part_number, cc.description, cc.manufacturer
+        FROM component_catalog cc
+        JOIN server_quickspec_components sqc ON sqc.catalog_id = cc.id
+        WHERE cc.component_type = ?
+        ORDER BY cc.manufacturer, cc.part_number
     """, (ctype,)).fetchall()
     db.close()
-    return jsonify([dict(r) for r in rows])
+
+    result = [dict(r) for r in rows]
+
+    if ctype == 'Network Card':
+        import re
+        _nic_re = re.compile(
+            r'ethernet|infiniband|adapter|omni-path|\bnic\b|gbe\b|10g|25g|40g|100g|'
+            r'sfp|qsfp|osfp|ocp\s*\d|\bfcoe\b|\broce\b',
+            re.IGNORECASE
+        )
+        result = [r for r in result if r['description'] and _nic_re.search(r['description'])]
+        # Deduplicate by part_number — prefer named manufacturer over 'Unknown'
+        seen = {}
+        for r in result:
+            pn = r['part_number']
+            if pn not in seen or seen[pn]['manufacturer'] in (None, 'Unknown'):
+                seen[pn] = r
+        result = sorted(seen.values(), key=lambda r: (r['manufacturer'] or '', r['part_number']))
+
+    return jsonify(result)
 
 
 @app.route('/api/admin/servers')
