@@ -220,10 +220,26 @@
                 <div class="basic-nic-section">
                     <div class="basic-nic-header">
                         <span class="basic-nic-title">Network Interfaces</span>
-                        <button class="btn-ghost btn-sm" onclick="addBasicNicRow()">+ Add NIC</button>
                     </div>
-                    <div id="basicNicRows">
-                        <!-- seeded by setConfigMode('basic') -->
+                    <div class="basic-nic-row">
+                        <span class="nic-role-label">Production NIC</span>
+                        <select id="nicProdSelect" class="nic-part-select">
+                            <option value="">— Select NIC —</option>
+                            {% for n in nic_catalog %}
+                            <option value="{{ n.part_number }}">{{ n.description or n.part_number }}{% if n.description %} ({{ n.part_number }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="number" id="nicProdQty" class="comp-qty" value="1" min="1" max="255" title="Quantity">
+                    </div>
+                    <div class="basic-nic-row">
+                        <span class="nic-role-label">Management NIC</span>
+                        <select id="nicMgmtSelect" class="nic-part-select">
+                            <option value="">— Select NIC —</option>
+                            {% for n in nic_catalog %}
+                            <option value="{{ n.part_number }}">{{ n.description or n.part_number }}{% if n.description %} ({{ n.part_number }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="number" id="nicMgmtQty" class="comp-qty" value="1" min="1" max="255" title="Quantity">
                     </div>
                 </div>
                 <div class="form-actions">
@@ -266,8 +282,6 @@
         let configModalProjectId = null;
         let manufacturers = [];
         let learnedComponents = [];
-        // NIC catalog pre-rendered server-side — no async fetch needed
-        const nicCatalog = {{ nic_catalog | tojson }};
 
         function toggleQuoteSelection(id) {
             if (selectedQuotes.has(id)) {
@@ -365,10 +379,10 @@
                 document.getElementById('basicMemory').value     = '';
                 document.getElementById('basicDisk').value       = '';
                 document.getElementById('basicPSU').value        = '';
-                const nicRows = document.getElementById('basicNicRows');
-                nicRows.innerHTML = '';
-                nicRows.appendChild(buildBasicNicRow('Production NIC'));
-                nicRows.appendChild(buildBasicNicRow('Management NIC'));
+                document.getElementById('nicProdSelect').value   = '';
+                document.getElementById('nicProdQty').value      = '1';
+                document.getElementById('nicMgmtSelect').value   = '';
+                document.getElementById('nicMgmtQty').value      = '1';
             }
             if (mode === 'vendor') {
                 document.getElementById('vendorConfigName').value = '';
@@ -395,18 +409,19 @@
             add('Memory',       'basicMemory', 'basicMemoryQty');
             add('Disk',         'basicDisk',   'basicDiskQty');
             add('Power Supply', 'basicPSU',    'basicPSUQty');
-            // NIC rows
-            document.querySelectorAll('#basicNicRows .basic-nic-row').forEach(row => {
-                const pn   = row.querySelector('.nic-part-select').value;
+            // NIC rows (fixed Production + Management)
+            [['Production NIC', 'nicProdSelect', 'nicProdQty'],
+             ['Management NIC',  'nicMgmtSelect', 'nicMgmtQty']].forEach(([role, selId, qtyId]) => {
+                const sel = document.getElementById(selId);
+                const pn  = sel.value;
                 if (!pn) return;
-                const role = row.querySelector('.nic-role-select').value;
-                const qty  = Math.min(255, Math.max(1, parseInt(row.querySelector('.comp-qty').value) || 1));
-                const opt  = row.querySelector('.nic-part-select').selectedOptions[0];
+                const qty = Math.min(255, Math.max(1, parseInt(document.getElementById(qtyId).value) || 1));
+                const opt = sel.selectedOptions[0];
                 components.push({
                     component_type: 'Network Card',
                     part_number:    pn,
                     model:          role,
-                    specs:          opt.dataset.desc || null,
+                    specs:          opt ? opt.textContent.trim() : null,
                     quantity:       qty,
                 });
             });
@@ -414,36 +429,6 @@
         }
 
         // ── Basic NIC rows ────────────────────────────────────────────────────
-
-        const NIC_ROLES = ['Production NIC', 'Management NIC', 'Storage NIC', 'Additional NIC'];
-
-        function buildBasicNicRow(role) {
-            const opts = nicCatalog.map(n => {
-                const desc = n.description || n.part_number;
-                const label = desc.length > 60 ? desc.slice(0, 58) + '…' : desc;
-                const safeDesc = desc.replace(/"/g, '&quot;');
-                return `<option value="${n.part_number}" data-desc="${safeDesc}">${label} (${n.part_number})</option>`;
-            }).join('');
-            const roleOpts = NIC_ROLES.map(r =>
-                `<option value="${r}"${r === role ? ' selected' : ''}>${r}</option>`
-            ).join('');
-            const row = document.createElement('div');
-            row.className = 'basic-nic-row';
-            row.innerHTML = `
-                <select class="nic-role-select">${roleOpts}</select>
-                <select class="nic-part-select">
-                    <option value="">— Select NIC —</option>
-                    ${opts}
-                </select>
-                <input type="number" class="comp-qty" value="1" min="1" max="255" title="Quantity">
-                <button class="btn-remove-comp" onclick="this.closest('.basic-nic-row').remove()" title="Remove">&times;</button>
-            `;
-            return row;
-        }
-
-        function addBasicNicRow() {
-            document.getElementById('basicNicRows').appendChild(buildBasicNicRow('Additional NIC'));
-        }
 
         // ── Build from Vendor ─────────────────────────────────────────────────
 

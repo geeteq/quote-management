@@ -3239,7 +3239,7 @@ button:hover {
     border-bottom: 1px solid #f1f5f9;
 }
 .basic-nic-row:last-child { border-bottom: none; }
-.nic-role-select  { width: 150px; flex-shrink: 0; font-size: 0.83rem; font-weight: 600; color: #374151; }
+.nic-role-label   { width: 130px; flex-shrink: 0; font-size: 0.82rem; font-weight: 600; color: #374151; }
 .nic-part-select  { flex: 1; min-width: 0; font-size: 0.83rem; }
 
 /* ── Vendor config builder ───────────────────────────────────────────────── */
