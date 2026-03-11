@@ -1837,9 +1837,13 @@ def _save_quickspec_to_db(server_data: dict, components: list, pdf_path: str) ->
     try:
         db.execute("PRAGMA foreign_keys = ON")
 
+        vendor = server_data.get('manufacturer', 'HPE')
         mfr_row = db.execute(
-            "SELECT id FROM manufacturers WHERE name = ?", ('HPE',)
+            "SELECT id FROM manufacturers WHERE name = ?", (vendor,)
         ).fetchone()
+        if not mfr_row:
+            db.execute("INSERT OR IGNORE INTO manufacturers (name) VALUES (?)", (vendor,))
+            mfr_row = db.execute("SELECT id FROM manufacturers WHERE name = ?", (vendor,)).fetchone()
         manufacturer_id = mfr_row['id'] if mfr_row else None
 
         # Upsert server
@@ -1880,13 +1884,13 @@ def _save_quickspec_to_db(server_data: dict, components: list, pdf_path: str) ->
             db.execute("""
                 INSERT OR IGNORE INTO component_catalog
                     (component_type, manufacturer, model, part_number, description, data_source)
-                VALUES (?, 'HPE', ?, ?, ?, 'quickspec_pdf')
-            """, (ctype, pn, pn, desc))
+                VALUES (?, ?, ?, ?, ?, 'quickspec_pdf')
+            """, (ctype, vendor, pn, pn, desc))
 
             cat_row = db.execute(
                 "SELECT id FROM component_catalog "
-                "WHERE component_type = ? AND manufacturer = 'HPE' AND model = ?",
-                (ctype, pn)
+                "WHERE component_type = ? AND manufacturer = ? AND model = ?",
+                (ctype, vendor, pn)
             ).fetchone()
             if not cat_row:
                 continue
@@ -1970,7 +1974,7 @@ def api_quickspec_upload():
         if not server.get('model_name'):
             os.remove(filepath)
             return jsonify({'error': 'Could not detect server model from PDF. '
-                                     'Ensure this is an HPE QuickSpec document.'}), 422
+                                     'Supports HPE QuickSpec and Dell Technical Guide PDFs.'}), 422
 
         summary = _save_quickspec_to_db(server, components, filepath)
 
@@ -2036,6 +2040,29 @@ def api_admin_servers():
     """).fetchall()
     db.close()
     return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/servers/<int:server_id>/components')
+def api_server_components_json(server_id):
+    """JSON: components for a server grouped by component_type."""
+    db = get_db()
+    rows = db.execute("""
+        SELECT cc.component_type, cc.part_number AS part_number,
+               cc.description, cc.manufacturer,
+               sqc.component_role, sqc.is_standard, sqc.is_optional
+        FROM server_quickspec_components sqc
+        JOIN component_catalog cc ON sqc.catalog_id = cc.id
+        WHERE sqc.server_id = ?
+        ORDER BY cc.component_type,
+                 sqc.is_standard DESC,
+                 cc.part_number
+    """, (server_id,)).fetchall()
+    db.close()
+    from collections import defaultdict
+    grouped = defaultdict(list)
+    for r in rows:
+        grouped[r['component_type']].append(dict(r))
+    return jsonify(grouped)
 
 
 @app.route('/admin/servers/<int:server_id>/components')

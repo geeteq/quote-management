@@ -161,20 +161,73 @@
                 <h2>Add Base Config</h2>
                 <button class="modal-close" onclick="closeConfigModal()">&times;</button>
             </div>
-            <div class="form-group">
-                <label for="configName">Config Name <span class="required">*</span></label>
-                <input type="text" id="configName" placeholder="e.g., Standard 2-Socket Server">
+
+            <!-- Mode picker -->
+            <div id="configModePicker" class="config-mode-picker">
+                <button class="config-mode-btn" onclick="setConfigMode('basic')">
+                    <span class="config-mode-icon">&#9998;</span>
+                    <span class="config-mode-label">Basic Config</span>
+                    <span class="config-mode-desc">Enter CPU, Memory, Disk and Power Supply manually</span>
+                </button>
+                <button class="config-mode-btn" onclick="setConfigMode('vendor')">
+                    <span class="config-mode-icon">&#128196;</span>
+                    <span class="config-mode-label">Build from Vendor Spec</span>
+                    <span class="config-mode-desc">Pick a server from the catalog and select components from its spec sheet</span>
+                </button>
             </div>
-            <div class="config-components-section">
-                <div class="config-section-toolbar">
-                    <h3>Components</h3>
-                    <button class="btn-secondary btn-sm" onclick="addComponentRow()">+ Add Component</button>
+
+            <!-- Basic Config form -->
+            <div id="configBasicForm" style="display:none;">
+                <div class="form-group">
+                    <label>Config Name <span class="required">*</span></label>
+                    <input type="text" id="basicConfigName" placeholder="e.g., Standard 2-Socket Server">
                 </div>
-                <div id="componentRows"></div>
+                <div class="basic-config-grid">
+                    <div class="form-group">
+                        <label>CPU</label>
+                        <input type="text" id="basicCPU" placeholder="e.g., Intel Xeon Gold 6338 32-Core">
+                    </div>
+                    <div class="form-group">
+                        <label>Memory</label>
+                        <input type="text" id="basicMemory" placeholder="e.g., 512GB DDR5 4800MHz">
+                    </div>
+                    <div class="form-group">
+                        <label>Disk</label>
+                        <input type="text" id="basicDisk" placeholder="e.g., 4x 3.84TB NVMe SSD">
+                    </div>
+                    <div class="form-group">
+                        <label>Power Supply</label>
+                        <input type="text" id="basicPSU" placeholder="e.g., 800W Platinum Redundant">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button class="btn-primary" onclick="saveBasicConfig()">Save Config</button>
+                    <button class="btn-secondary" onclick="setConfigMode(null)">&#8592; Back</button>
+                    <button class="btn-secondary" onclick="closeConfigModal()">Cancel</button>
+                </div>
             </div>
-            <div class="form-actions">
-                <button class="btn-primary" onclick="saveConfig()">Save Config</button>
-                <button class="btn-secondary" onclick="closeConfigModal()">Cancel</button>
+
+            <!-- Build from Vendor form -->
+            <div id="configVendorForm" style="display:none;">
+                <div class="form-group">
+                    <label>Config Name <span class="required">*</span></label>
+                    <input type="text" id="vendorConfigName" placeholder="e.g., HPE DL360 Gen12 Standard">
+                </div>
+                <div class="form-group">
+                    <label>Server Model</label>
+                    <select id="vendorServerSelect" onchange="loadServerComponents(this.value)">
+                        <option value="">— Select a server from catalog —</option>
+                    </select>
+                </div>
+                <div id="vendorComponentsArea"></div>
+                <div class="vendor-add-row" id="vendorAddRow" style="display:none;">
+                    <button class="btn-secondary btn-sm" onclick="addVendorCustomRow()">+ Add Custom Component</button>
+                </div>
+                <div class="form-actions">
+                    <button class="btn-primary" onclick="saveVendorConfig()">Save Config</button>
+                    <button class="btn-secondary" onclick="setConfigMode(null)">&#8592; Back</button>
+                    <button class="btn-secondary" onclick="closeConfigModal()">Cancel</button>
+                </div>
             </div>
         </div>
     </div>
@@ -249,103 +302,188 @@
 
         // ── Config Modal ──────────────────────────────────────────────────────
 
+        let serverCatalog = [];       // [{id, model_name, ...}]
+        let serverComponents = {};    // {component_type: [{part_number, description, ...}]}
+
         async function showAddConfigModal(projectId) {
             configModalProjectId = projectId;
-            document.getElementById('configName').value = '';
-            document.getElementById('componentRows').innerHTML = '';
-            if (!manufacturers.length) {
-                const r = await fetch(`${BASE}/api/manufacturers`);
-                manufacturers = await r.json();
-            }
-            if (!learnedComponents.length) {
-                const r = await fetch(`${BASE}/api/components/learned`);
-                learnedComponents = await r.json();
-            }
+            setConfigMode(null);
             document.getElementById('addConfigModal').style.display = 'flex';
+            // Pre-fetch server catalog in background
+            if (!serverCatalog.length) {
+                const r = await fetch(`${BASE}/api/admin/servers`);
+                serverCatalog = await r.json();
+                const sel = document.getElementById('vendorServerSelect');
+                serverCatalog.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.textContent = `${s.model_name}${s.form_factor ? '  ·  ' + s.form_factor : ''}${s.generation ? '  ' + s.generation : ''}  (${s.component_count} components)`;
+                    sel.appendChild(opt);
+                });
+            }
         }
 
         function closeConfigModal() {
             document.getElementById('addConfigModal').style.display = 'none';
         }
 
-        function addComponentRow() {
-            const container = document.getElementById('componentRows');
-            const row = document.createElement('div');
-            row.className = 'comp-row';
-
-            const mfgOptions = manufacturers.map(m =>
-                `<option value="${m.id}">${m.name}</option>`).join('');
-            const learnedOptions = learnedComponents.map((c, i) =>
-                `<option value="${i}">${c.component_type} — ${c.manufacturer || ''} ${c.part_number || ''} ${c.model || ''}</option>`).join('');
-            const typeOptions = ['CPU','Memory','Disk','Network Card','Power Supply','GPU','Storage Controller','Additional Hardware']
-                .map(t => `<option value="${t}">${t}</option>`).join('');
-
-            row.innerHTML = `
-                <div class="comp-row-learned">
-                    <label>Import from learned components</label>
-                    <select class="comp-learned" onchange="fillFromLearned(this)">
-                        <option value="">— Select to auto-fill —</option>
-                        ${learnedOptions}
-                    </select>
-                </div>
-                <div class="comp-row-fields">
-                    <div class="comp-field">
-                        <label>Type</label>
-                        <select class="comp-type"><option value="">— Select —</option>${typeOptions}</select>
-                    </div>
-                    <div class="comp-field">
-                        <label>Manufacturer</label>
-                        <select class="comp-mfg"><option value="">— Select —</option>${mfgOptions}</select>
-                    </div>
-                    <div class="comp-field">
-                        <label>Part Number</label>
-                        <input type="text" class="comp-part" placeholder="Part number">
-                    </div>
-                    <div class="comp-field">
-                        <label>Model</label>
-                        <input type="text" class="comp-model" placeholder="Model">
-                    </div>
-                    <div class="comp-field comp-field-wide">
-                        <label>Specs</label>
-                        <input type="text" class="comp-specs" placeholder="e.g., 64GB DDR5 4800MHz">
-                    </div>
-                    <button class="btn-remove-comp" onclick="this.closest('.comp-row').remove()" title="Remove">&times;</button>
-                </div>
-            `;
-            container.appendChild(row);
+        function setConfigMode(mode) {
+            document.getElementById('configModePicker').style.display  = mode ? 'none' : 'flex';
+            document.getElementById('configBasicForm').style.display   = mode === 'basic'  ? 'block' : 'none';
+            document.getElementById('configVendorForm').style.display  = mode === 'vendor' ? 'block' : 'none';
+            if (mode === 'basic') {
+                document.getElementById('basicConfigName').value = '';
+                document.getElementById('basicCPU').value        = '';
+                document.getElementById('basicMemory').value     = '';
+                document.getElementById('basicDisk').value       = '';
+                document.getElementById('basicPSU').value        = '';
+            }
+            if (mode === 'vendor') {
+                document.getElementById('vendorConfigName').value = '';
+                document.getElementById('vendorServerSelect').value = '';
+                document.getElementById('vendorComponentsArea').innerHTML = '';
+                document.getElementById('vendorAddRow').style.display = 'none';
+                serverComponents = {};
+            }
         }
 
-        function fillFromLearned(select) {
-            const idx = select.value;
-            if (idx === '') return;
-            const c = learnedComponents[parseInt(idx)];
-            const row = select.closest('.comp-row');
-            const setVal = (sel, val) => { if (val) sel.value = val; };
-            setVal(row.querySelector('.comp-type'), c.component_type);
-            row.querySelector('.comp-part').value  = c.part_number || '';
-            row.querySelector('.comp-model').value = c.model || '';
-            // Try to match manufacturer by name
-            const mfgSel = row.querySelector('.comp-mfg');
-            const opt = Array.from(mfgSel.options).find(o => o.text === c.manufacturer);
-            if (opt) mfgSel.value = opt.value;
-            try {
-                const specs = JSON.parse(c.specs_json || '{}');
-                row.querySelector('.comp-specs').value = Object.entries(specs)
-                    .filter(([,v]) => v).map(([k,v]) => `${k}: ${v}`).join(', ');
-            } catch (_) {}
-        }
+        // ── Basic Config ─────────────────────────────────────────────────────
 
-        async function saveConfig() {
-            const name = document.getElementById('configName').value.trim();
+        async function saveBasicConfig() {
+            const name = document.getElementById('basicConfigName').value.trim();
             if (!name) { alert('Config name is required.'); return; }
-            const rows = document.querySelectorAll('#componentRows .comp-row');
-            const components = Array.from(rows).map(row => ({
-                component_type:  row.querySelector('.comp-type').value || null,
-                manufacturer_id: row.querySelector('.comp-mfg').value  || null,
-                part_number:     row.querySelector('.comp-part').value  || null,
-                model:           row.querySelector('.comp-model').value || null,
-                specs:           row.querySelector('.comp-specs').value || null,
-            }));
+            const components = [];
+            const add = (type, val) => {
+                if (val.trim()) components.push({component_type: type, specs: val.trim()});
+            };
+            add('CPU',          document.getElementById('basicCPU').value);
+            add('Memory',       document.getElementById('basicMemory').value);
+            add('Disk',         document.getElementById('basicDisk').value);
+            add('Power Supply', document.getElementById('basicPSU').value);
+            await _submitConfig(name, components);
+        }
+
+        // ── Build from Vendor ─────────────────────────────────────────────────
+
+        const VENDOR_TYPES = ['CPU', 'Memory', 'Disk', 'Power Supply', 'Storage Controller', 'Network Card', 'GPU'];
+
+        async function loadServerComponents(serverId) {
+            const area = document.getElementById('vendorComponentsArea');
+            if (!serverId) { area.innerHTML = ''; document.getElementById('vendorAddRow').style.display = 'none'; return; }
+            area.innerHTML = '<div class="vendor-loading">Loading components…</div>';
+            const r = await fetch(`${BASE}/api/servers/${serverId}/components`);
+            serverComponents = await r.json();
+            renderVendorComponentRows();
+            document.getElementById('vendorAddRow').style.display = 'block';
+            // Auto-set config name from server model
+            const server = serverCatalog.find(s => s.id == serverId);
+            if (server && !document.getElementById('vendorConfigName').value) {
+                document.getElementById('vendorConfigName').value = server.model_name;
+            }
+        }
+
+        function renderVendorComponentRows() {
+            const area = document.getElementById('vendorComponentsArea');
+            area.innerHTML = '';
+            VENDOR_TYPES.forEach(ctype => {
+                const options = serverComponents[ctype];
+                if (!options || !options.length) return;
+                const section = document.createElement('div');
+                section.className = 'vendor-type-section';
+                section.dataset.ctype = ctype;
+                section.innerHTML = `<div class="vendor-type-header">
+                    <span class="component-type-badge">${ctype}</span>
+                    <button class="btn-sm btn-ghost" onclick="addVendorRow('${ctype}')">+ Add row</button>
+                </div>`;
+                // Start with one selector row per type
+                section.appendChild(buildVendorRow(ctype, options));
+                area.appendChild(section);
+            });
+        }
+
+        function buildVendorRow(ctype, optionsOverride) {
+            const options = optionsOverride || serverComponents[ctype] || [];
+            const row = document.createElement('div');
+            row.className = 'vendor-comp-row';
+            row.dataset.ctype = ctype;
+            const opts = options.map((c, i) =>
+                `<option value="${i}" data-pn="${c.part_number}" data-desc="${(c.description||'').replace(/"/g,"&quot;")}">`+
+                `${c.part_number}${c.description ? ' — ' + c.description.slice(0,60) : ''}</option>`
+            ).join('');
+            row.innerHTML = `
+                <select class="vendor-comp-select" onchange="syncVendorRowDesc(this)">
+                    <option value="">— Select ${ctype} —</option>
+                    ${opts}
+                </select>
+                <input type="text" class="vendor-comp-desc" placeholder="Description / specs (optional)">
+                <button class="btn-remove-comp" onclick="this.closest('.vendor-comp-row').remove()" title="Remove">&times;</button>
+            `;
+            return row;
+        }
+
+        function syncVendorRowDesc(sel) {
+            const opt = sel.options[sel.selectedIndex];
+            const descInput = sel.closest('.vendor-comp-row').querySelector('.vendor-comp-desc');
+            descInput.value = opt.dataset.desc || '';
+        }
+
+        function addVendorRow(ctype) {
+            const section = document.querySelector(`.vendor-type-section[data-ctype="${ctype}"]`);
+            if (section) section.appendChild(buildVendorRow(ctype));
+        }
+
+        function addVendorCustomRow() {
+            const area = document.getElementById('vendorComponentsArea');
+            const typeOptions = VENDOR_TYPES.concat(['Storage Controller','Additional Hardware'])
+                .map(t => `<option value="${t}">${t}</option>`).join('');
+            const row = document.createElement('div');
+            row.className = 'vendor-comp-row vendor-custom-row';
+            row.innerHTML = `
+                <select class="vendor-custom-type">
+                    <option value="">— Type —</option>${typeOptions}
+                </select>
+                <input type="text" class="comp-part" placeholder="Part number">
+                <input type="text" class="vendor-comp-desc" placeholder="Description / specs">
+                <button class="btn-remove-comp" onclick="this.closest('.vendor-comp-row').remove()" title="Remove">&times;</button>
+            `;
+            area.appendChild(row);
+        }
+
+        async function saveVendorConfig() {
+            const name = document.getElementById('vendorConfigName').value.trim();
+            if (!name) { alert('Config name is required.'); return; }
+            const components = [];
+
+            // Rows from server catalog sections
+            document.querySelectorAll('.vendor-comp-row:not(.vendor-custom-row)').forEach(row => {
+                const sel   = row.querySelector('.vendor-comp-select');
+                const ctype = row.dataset.ctype;
+                if (!sel || !sel.value) return;
+                const opt  = sel.options[sel.selectedIndex];
+                const desc = row.querySelector('.vendor-comp-desc').value.trim();
+                components.push({
+                    component_type: ctype,
+                    part_number:    opt.dataset.pn || null,
+                    specs:          desc || opt.dataset.desc || null,
+                });
+            });
+
+            // Custom rows
+            document.querySelectorAll('.vendor-custom-row').forEach(row => {
+                const ctype = row.querySelector('.vendor-custom-type').value;
+                const pn    = row.querySelector('.comp-part').value.trim();
+                const desc  = row.querySelector('.vendor-comp-desc').value.trim();
+                if (ctype && (pn || desc)) {
+                    components.push({component_type: ctype, part_number: pn || null, specs: desc || null});
+                }
+            });
+
+            await _submitConfig(name, components);
+        }
+
+        // ── Shared submit ─────────────────────────────────────────────────────
+
+        async function _submitConfig(name, components) {
             const resp = await fetch(`${BASE}/api/projects/${configModalProjectId}/configs`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},

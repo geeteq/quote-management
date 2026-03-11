@@ -1904,40 +1904,37 @@ button:hover {
     background: #e0e0e0;
 }
 
-/* Admin Table */
-.tenants-table-wrapper {
-    overflow-x: auto;
-}
-
+/* Admin Table — canonical style is .components-table / .components-table-wrapper.
+   .admin-table kept as an alias for any remaining references. */
 .admin-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 14px;
+    font-size: 13px;
 }
-
-.admin-table thead {
-    background: #f8f9ff;
-}
-
-.admin-table th {
-    padding: 15px;
+.admin-table thead th {
+    background: #f8f9fb;
+    padding: 11px 16px;
     text-align: left;
+    font-size: 11px;
     font-weight: 700;
-    color: #333;
     text-transform: uppercase;
-    font-size: 12px;
-    letter-spacing: 0.5px;
-    border-bottom: 2px solid #667eea;
+    letter-spacing: 0.6px;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
 }
-
+.admin-table tbody tr {
+    border-bottom: 1px solid #e5e7eb;
+    transition: background 0.1s;
+}
+.admin-table tbody tr:nth-child(odd)  { background: #ffffff; }
+.admin-table tbody tr:nth-child(even) { background: #f8fafc; }
+.admin-table tbody tr:last-child { border-bottom: none; }
+.admin-table tbody tr:hover { background: #eef2ff !important; }
 .admin-table td {
-    padding: 15px;
-    border-bottom: 1px solid #f0f0f0;
-    color: #555;
-}
-
-.admin-table tbody tr:hover {
-    background: #f8f9ff;
+    padding: 10px 16px;
+    vertical-align: middle;
+    color: #374151;
 }
 
 .clickable-row {
@@ -3162,6 +3159,100 @@ button:hover {
     font-size: 12px;
 }
 
+/* ── Config modal mode picker ────────────────────────────────────────────── */
+.config-mode-picker {
+    display: flex;
+    gap: 16px;
+    margin: 8px 0 20px;
+}
+.config-mode-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 18px 20px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    background: #f8faff;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.config-mode-btn:hover {
+    border-color: #6366f1;
+    background: #eef2ff;
+    box-shadow: 0 2px 8px rgba(99,102,241,0.12);
+}
+.config-mode-icon { font-size: 1.5rem; margin-bottom: 2px; }
+.config-mode-label { font-size: 0.97rem; font-weight: 700; color: #1e293b; }
+.config-mode-desc  { font-size: 0.78rem; color: #64748b; font-weight: 400; line-height: 1.4; }
+
+/* ── Basic config grid ───────────────────────────────────────────────────── */
+.basic-config-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 4px;
+}
+
+/* ── Vendor config builder ───────────────────────────────────────────────── */
+.vendor-loading { padding: 18px; color: #94a3b8; font-style: italic; text-align: center; }
+
+.vendor-type-section {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+.vendor-type-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f1f5f9;
+    padding: 8px 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+.vendor-comp-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #f1f5f9;
+}
+.vendor-comp-row:last-child { border-bottom: none; }
+.vendor-custom-row { background: #fffbeb; border-top: 1px solid #fde68a; }
+
+.vendor-comp-select {
+    flex: 1.5;
+    min-width: 0;
+    font-size: 0.83rem;
+}
+.vendor-comp-desc {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.83rem;
+}
+.vendor-custom-type {
+    flex: 0.8;
+    min-width: 0;
+    font-size: 0.83rem;
+}
+.vendor-add-row {
+    margin-top: 4px;
+    margin-bottom: 12px;
+}
+.btn-ghost {
+    background: none;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 0.76rem;
+    cursor: pointer;
+}
+.btn-ghost:hover { background: #f1f5f9; }
+
 .comp-row {
     background: #f8faff;
     border: 1px solid #e2e8f0;
@@ -3398,14 +3489,6 @@ button:hover {
 .txn-type-chip-label { color: #94a3b8; }
 .txn-type-chip-count { color: #f1f5f9; font-weight: 700; font-family: monospace; }
 .txn-type-chip-tokens { color: #a5f3fc; font-family: monospace; font-size: 0.68rem; }
-
-/* Controls */
-.txn-controls {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 10px;
-}
 
 /* Ledger table */
 .txn-table .txn-id  { color: #94a3b8; font-size: 0.75rem; }
