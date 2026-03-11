@@ -266,6 +266,8 @@
         let configModalProjectId = null;
         let manufacturers = [];
         let learnedComponents = [];
+        // NIC catalog pre-rendered server-side — no async fetch needed
+        const nicCatalog = {{ nic_catalog | tojson }};
 
         function toggleQuoteSelection(id) {
             if (selectedQuotes.has(id)) {
@@ -330,7 +332,6 @@
 
         let serverCatalog = [];       // [{id, model_name, ...}]
         let serverComponents = {};    // {component_type: [{part_number, description, ...}]}
-        let nicCatalog = [];          // [{part_number, description, manufacturer}]
 
         async function showAddConfigModal(projectId) {
             configModalProjectId = projectId;
@@ -354,7 +355,7 @@
             document.getElementById('addConfigModal').style.display = 'none';
         }
 
-        async function setConfigMode(mode) {
+        function setConfigMode(mode) {
             document.getElementById('configModePicker').style.display  = mode ? 'none' : 'flex';
             document.getElementById('configBasicForm').style.display   = mode === 'basic'  ? 'block' : 'none';
             document.getElementById('configVendorForm').style.display  = mode === 'vendor' ? 'block' : 'none';
@@ -364,10 +365,6 @@
                 document.getElementById('basicMemory').value     = '';
                 document.getElementById('basicDisk').value       = '';
                 document.getElementById('basicPSU').value        = '';
-                if (!nicCatalog.length) {
-                    const r = await fetch(`${BASE}/api/catalog/components?type=Network+Card`);
-                    nicCatalog = await r.json();
-                }
                 const nicRows = document.getElementById('basicNicRows');
                 nicRows.innerHTML = '';
                 nicRows.appendChild(buildBasicNicRow('Production NIC'));

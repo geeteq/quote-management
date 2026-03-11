@@ -698,7 +698,29 @@ def get_all_quotes():
 @app.route('/')
 def index():
     """Main page with tenant/project hierarchy navigation."""
-    return render_template('index_new.html')
+    import re as _re
+    db = get_db()
+    _nic_re = _re.compile(
+        r'ethernet|infiniband|adapter|omni-path|\bnic\b|gbe\b|10g|25g|40g|100g|'
+        r'sfp|qsfp|osfp|ocp\s*\d|\bfcoe\b|\broce\b',
+        _re.IGNORECASE
+    )
+    rows = db.execute("""
+        SELECT DISTINCT cc.part_number, cc.description, cc.manufacturer
+        FROM component_catalog cc
+        JOIN server_quickspec_components sqc ON sqc.catalog_id = cc.id
+        WHERE cc.component_type = 'Network Card'
+        ORDER BY cc.manufacturer, cc.part_number
+    """).fetchall()
+    db.close()
+    raw = [dict(r) for r in rows if r['description'] and _nic_re.search(r['description'])]
+    seen = {}
+    for r in raw:
+        pn = r['part_number']
+        if pn not in seen or seen[pn]['manufacturer'] in (None, 'Unknown'):
+            seen[pn] = r
+    nic_catalog = sorted(seen.values(), key=lambda r: (r['manufacturer'] or '', r['part_number']))
+    return render_template('index_new.html', nic_catalog=nic_catalog)
 
 
 @app.route('/quote/<int:quote_id>')
