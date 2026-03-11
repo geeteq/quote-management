@@ -508,3 +508,38 @@ CREATE INDEX IF NOT EXISTS idx_transactions_user    ON transactions(user_name);
 CREATE INDEX IF NOT EXISTS idx_transactions_quote   ON transactions(quote_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_config  ON transactions(config_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at);
+
+-- =============================================================================
+-- SERVERS — catalog of server models parsed from QuickSpec PDFs
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS servers (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    manufacturer_id INTEGER REFERENCES manufacturers(id),
+    model_name      TEXT NOT NULL UNIQUE,
+    model_number    TEXT,
+    form_factor     TEXT,
+    generation      TEXT,
+    pdf_path        TEXT,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_servers_model        ON servers(model_name);
+CREATE INDEX IF NOT EXISTS idx_servers_manufacturer ON servers(manufacturer_id);
+
+-- =============================================================================
+-- SERVER_QUICKSPEC_COMPONENTS — junction: server ↔ component_catalog
+-- Every component option parsed from a QuickSpec PDF is linked here.
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS server_quickspec_components (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    server_id      INTEGER NOT NULL REFERENCES servers(id)           ON DELETE CASCADE,
+    catalog_id     INTEGER NOT NULL REFERENCES component_catalog(id) ON DELETE CASCADE,
+    component_role TEXT,       -- e.g. 'Processor', 'System Memory', 'SSD'
+    is_standard    BOOLEAN DEFAULT 1,
+    is_optional    BOOLEAN DEFAULT 0,
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(server_id, catalog_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sqc_server  ON server_quickspec_components(server_id);
+CREATE INDEX IF NOT EXISTS idx_sqc_catalog ON server_quickspec_components(catalog_id);

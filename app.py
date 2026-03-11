@@ -14,6 +14,7 @@ _app_dir = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get('DATA_DIR', os.path.join(_app_dir, '..', 'data'))
 DATA_DIR = os.path.abspath(DATA_DIR)
 os.makedirs(os.path.join(DATA_DIR, 'uploads'), exist_ok=True)
+os.makedirs(os.path.join(DATA_DIR, 'quickspecs'), exist_ok=True)
 
 # Configure logging
 logging.basicConfig(
@@ -48,9 +49,22 @@ def is_expired_filter(expiry_date):
     return False
 
 
+def _git_branch():
+    try:
+        import subprocess
+        return subprocess.check_output(
+            ['git', '-C', _app_dir, 'rev-parse', '--abbrev-ref', 'HEAD'],
+            stderr=subprocess.DEVNULL
+        ).decode().strip()
+    except Exception:
+        return 'unknown'
+
+GIT_BRANCH = _git_branch()
+
+
 @app.context_processor
 def inject_base_href():
-    return {'base_href': BASE_HREF}
+    return {'base_href': BASE_HREF, 'git_branch': GIT_BRANCH}
 
 
 ALLOWED_EXTENSIONS = {'pdf'}
@@ -345,6 +359,44 @@ def migrate_db():
             db.execute("CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at)")
             db.commit()
             logger.info("M13b: transactions ledger table created")
+
+        # ── M14a: servers table ───────────────────────────────────────────────
+        if 'servers' not in tables():
+            db.execute("""CREATE TABLE servers (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                manufacturer_id INTEGER REFERENCES manufacturers(id),
+                model_name      TEXT NOT NULL UNIQUE,
+                model_number    TEXT,
+                form_factor     TEXT,
+                generation      TEXT,
+                pdf_path        TEXT,
+                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_servers_model        ON servers(model_name)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_servers_manufacturer ON servers(manufacturer_id)")
+            db.commit()
+            logger.info("M14a: servers table created")
+
+        # ── M14b: server_quickspec_components junction ────────────────────────
+        if 'server_quickspec_components' not in tables():
+            db.execute("""CREATE TABLE server_quickspec_components (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                server_id      INTEGER NOT NULL REFERENCES servers(id)           ON DELETE CASCADE,
+                catalog_id     INTEGER NOT NULL REFERENCES component_catalog(id) ON DELETE CASCADE,
+                component_role TEXT,
+                is_standard    BOOLEAN DEFAULT 1,
+                is_optional    BOOLEAN DEFAULT 0,
+                created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(server_id, catalog_id))""")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_sqc_server  ON server_quickspec_components(server_id)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_sqc_catalog ON server_quickspec_components(catalog_id)")
+            db.commit()
+            logger.info("M14b: server_quickspec_components junction created")
+
+        # ── M14c: parse_quickspec transaction type ────────────────────────────
+        db.execute("""INSERT OR IGNORE INTO transaction_types (code, label, description, token_cost)
+            VALUES ('parse_quickspec', 'Parse QuickSpec',
+                    'HPE QuickSpec PDF parsed into server catalog with component options', 5)""")
+        db.commit()
 
     finally:
         db.execute("PRAGMA foreign_keys = ON")
@@ -1761,6 +1813,258 @@ def admin_project_update(project_id):
         db.close()
 
     return redirect(url_for('admin_dashboard'))
+
+
+# =============================================================================
+# QUICKSPEC PARSER — parse HPE QuickSpec PDFs into server + component catalog
+# =============================================================================
+
+from quickspec_parser import QuickSpecParser
+
+
+def _save_quickspec_to_db(server_data: dict, components: list, pdf_path: str) -> dict:
+    """
+    Upsert server + components into the catalog in a single transaction.
+
+    - servers:                  INSERT OR IGNORE on model_name (UNIQUE)
+    - component_catalog:        INSERT OR IGNORE on (component_type, manufacturer, model)
+                                Uses part_number as model field per design spec
+    - server_quickspec_components: INSERT OR IGNORE on (server_id, catalog_id)
+
+    Returns summary: {server_name, server_id, components_new, components_existing, total}
+    """
+    db = get_db()
+    try:
+        db.execute("PRAGMA foreign_keys = ON")
+
+        mfr_row = db.execute(
+            "SELECT id FROM manufacturers WHERE name = ?", ('HPE',)
+        ).fetchone()
+        manufacturer_id = mfr_row['id'] if mfr_row else None
+
+        # Upsert server
+        db.execute("""
+            INSERT OR IGNORE INTO servers
+                (manufacturer_id, model_name, model_number, form_factor, generation, pdf_path)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            manufacturer_id,
+            server_data['model_name'],
+            server_data.get('model_number'),
+            server_data.get('form_factor'),
+            server_data.get('generation'),
+            pdf_path,
+        ))
+
+        server_row = db.execute(
+            "SELECT id FROM servers WHERE model_name = ?", (server_data['model_name'],)
+        ).fetchone()
+        server_id = server_row['id']
+
+        TYPE_NORMALIZER = {
+            'CPU': 'CPU', 'Memory': 'Memory', 'Disk': 'Disk',
+            'Storage Controller': 'Storage Controller', 'Network Card': 'Network Card',
+            'Power Supply': 'Power Supply', 'GPU': 'GPU',
+            'Additional Hardware': 'Additional Hardware',
+        }
+
+        components_new      = 0
+        components_existing = 0
+
+        for comp in components:
+            ctype = TYPE_NORMALIZER.get(comp['component_type'], 'Additional Hardware')
+            pn    = comp['part_number']
+            desc  = comp.get('description', '')
+
+            # Upsert catalog entry — part_number used as model per design spec
+            db.execute("""
+                INSERT OR IGNORE INTO component_catalog
+                    (component_type, manufacturer, model, part_number, description, data_source)
+                VALUES (?, 'HPE', ?, ?, ?, 'quickspec_pdf')
+            """, (ctype, pn, pn, desc))
+
+            cat_row = db.execute(
+                "SELECT id FROM component_catalog "
+                "WHERE component_type = ? AND manufacturer = 'HPE' AND model = ?",
+                (ctype, pn)
+            ).fetchone()
+            if not cat_row:
+                continue
+            catalog_id = cat_row['id']
+
+            already_linked = db.execute(
+                "SELECT id FROM server_quickspec_components "
+                "WHERE server_id = ? AND catalog_id = ?",
+                (server_id, catalog_id)
+            ).fetchone()
+
+            db.execute("""
+                INSERT OR IGNORE INTO server_quickspec_components
+                    (server_id, catalog_id, component_role, is_standard, is_optional)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                server_id, catalog_id,
+                comp.get('component_role'),
+                1 if comp.get('is_standard') else 0,
+                1 if comp.get('is_optional') else 0,
+            ))
+
+            if already_linked:
+                components_existing += 1
+            else:
+                components_new += 1
+
+        db.commit()
+        return {
+            'server_name':         server_data['model_name'],
+            'server_id':           server_id,
+            'model_number':        server_data.get('model_number'),
+            'form_factor':         server_data.get('form_factor'),
+            'generation':          server_data.get('generation'),
+            'components_new':      components_new,
+            'components_existing': components_existing,
+            'total':               len(components),
+        }
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+@app.route('/admin/quickspec/upload')
+def admin_quickspec_upload_view():
+    """QuickSpec upload form view (injected into admin dashboard)."""
+    return render_template('admin/quickspec_upload.html')
+
+
+@app.route('/api/admin/quickspec/upload', methods=['POST'])
+def api_quickspec_upload():
+    """
+    Upload and parse an HPE QuickSpec PDF.
+    Auto-saves on success. Returns JSON summary.
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    if not file.filename or not allowed_file(file.filename):
+        return jsonify({'error': 'Only PDF files allowed'}), 400
+
+    filename = secure_filename(file.filename)
+    filepath = os.path.join(DATA_DIR, 'quickspecs', filename)
+    file.save(filepath)
+
+    try:
+        is_valid, err = validate_pdf(filepath)
+        if not is_valid:
+            os.remove(filepath)
+            return jsonify({'error': f'PDF validation failed: {err}'}), 400
+
+        parser = QuickSpecParser(filepath)
+        result = parser.parse()
+
+        server     = result['server']
+        components = result['components']
+
+        if not server.get('model_name'):
+            os.remove(filepath)
+            return jsonify({'error': 'Could not detect server model from PDF. '
+                                     'Ensure this is an HPE QuickSpec document.'}), 422
+
+        summary = _save_quickspec_to_db(server, components, filepath)
+
+        log_transaction(
+            'parse_quickspec',
+            metadata={
+                'filename':        filename,
+                'server_model':    server['model_name'],
+                'components_new':  summary['components_new'],
+                'total':           summary['total'],
+                'page_count':      result.get('page_count'),
+            },
+            tokens_override=5 + summary['total']
+        )
+
+        logger.info(
+            f"QuickSpec saved: {server['model_name']} — "
+            f"{summary['components_new']} new, {summary['components_existing']} existing components"
+        )
+        return jsonify(summary)
+
+    except Exception as e:
+        logger.error(f"QuickSpec parse error for {filename}: {e}", exc_info=True)
+        if os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except OSError:
+                pass
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/servers')
+def admin_servers():
+    """Server catalog list view."""
+    db = get_db()
+    servers = db.execute("""
+        SELECT s.id, s.model_name, s.model_number, s.form_factor, s.generation,
+               s.created_at, m.name AS manufacturer_name,
+               COUNT(sqc.id) AS component_count
+        FROM servers s
+        LEFT JOIN manufacturers m ON s.manufacturer_id = m.id
+        LEFT JOIN server_quickspec_components sqc ON sqc.server_id = s.id
+        GROUP BY s.id
+        ORDER BY s.model_name
+    """).fetchall()
+    db.close()
+    return render_template('admin/servers_list.html', servers=[dict(s) for s in servers])
+
+
+@app.route('/api/admin/servers')
+def api_admin_servers():
+    """JSON list of servers with component counts."""
+    db = get_db()
+    rows = db.execute("""
+        SELECT s.id, s.model_name, s.model_number, s.form_factor, s.generation,
+               s.created_at, m.name AS manufacturer_name,
+               COUNT(sqc.id) AS component_count
+        FROM servers s
+        LEFT JOIN manufacturers m ON s.manufacturer_id = m.id
+        LEFT JOIN server_quickspec_components sqc ON sqc.server_id = s.id
+        GROUP BY s.id
+        ORDER BY s.model_name
+    """).fetchall()
+    db.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/admin/servers/<int:server_id>/components')
+def admin_server_components(server_id):
+    """Detail view: all components linked to a server via QuickSpec."""
+    db = get_db()
+    server = db.execute("""
+        SELECT s.*, m.name AS manufacturer_name
+        FROM servers s
+        LEFT JOIN manufacturers m ON s.manufacturer_id = m.id
+        WHERE s.id = ?
+    """, (server_id,)).fetchone()
+    if not server:
+        return 'Server not found', 404
+
+    components = db.execute("""
+        SELECT cc.component_type, cc.model AS part_number, cc.description,
+               sqc.component_role, sqc.is_standard, sqc.is_optional, sqc.created_at
+        FROM server_quickspec_components sqc
+        JOIN component_catalog cc ON sqc.catalog_id = cc.id
+        WHERE sqc.server_id = ?
+        ORDER BY cc.component_type, cc.model
+    """, (server_id,)).fetchall()
+    db.close()
+    return render_template(
+        'admin/server_components.html',
+        server=dict(server),
+        components=[dict(c) for c in components],
+    )
 
 
 if __name__ == '__main__':

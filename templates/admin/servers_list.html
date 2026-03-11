@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Server Catalog</title></head>
+<body>
+
+<div class="servers-content">
+    <div class="servers-header-row">
+        <h2 class="admin-section-title">Server Catalog</h2>
+        <span class="servers-count-badge">{{ servers|length }} server{{ 's' if servers|length != 1 else '' }}</span>
+    </div>
+
+    {% if servers %}
+    <div class="table-wrapper">
+        <table class="admin-table" id="serversTable">
+            <thead>
+                <tr>
+                    <th>Model</th>
+                    <th>Form Factor</th>
+                    <th>Generation</th>
+                    <th>Components</th>
+                    <th>Added</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in servers %}
+                <tr>
+                    <td>
+                        <span class="server-model-name">{{ s.model_name }}</span>
+                        {% if s.model_number %}
+                        <span class="server-model-number mono">{{ s.model_number }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if s.form_factor %}
+                        <span class="server-ff-badge">{{ s.form_factor }}</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        {% if s.generation %}
+                        <span class="server-gen-badge">{{ s.generation }}</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        <span class="server-comp-count">{{ s.component_count }}</span>
+                    </td>
+                    <td class="mono" style="font-size:0.76rem;color:#64748b;">
+                        {{ s.created_at[:10] if s.created_at else '—' }}
+                    </td>
+                    <td>
+                        <a href="admin/servers/{{ s.id }}/components"
+                           class="btn-server-detail" target="_blank">
+                            View Components &#8599;
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No servers in catalog yet. Upload a QuickSpec PDF to get started.</p>
+    </div>
+    {% endif %}
+</div>
+
+</body>
+</html>

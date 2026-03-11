@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Upload QuickSpec</title></head>
+<body>
+
+<div class="quickspec-upload-content">
+    <h2 class="admin-section-title">Upload HPE QuickSpec PDF</h2>
+    <p class="qs-intro">
+        Upload an HPE QuickSpec PDF to parse all available component options
+        for that server model. Parsed components are stored in the server catalog
+        and linked to the server via a spec-to-component index.
+    </p>
+
+    <div class="qs-upload-card">
+        <div class="qs-drop-area" id="qsDropArea">
+            <div class="qs-drop-icon">&#128196;</div>
+            <p class="qs-drop-label">Drag &amp; drop QuickSpec PDF here</p>
+            <p class="qs-drop-sub">or</p>
+            <label class="btn-qs-browse" for="qsFileInput">Choose PDF</label>
+            <input type="file" id="qsFileInput" accept=".pdf" style="display:none">
+            <p class="qs-file-name" id="qsFileName">No file selected</p>
+        </div>
+
+        <button class="btn-qs-upload" id="qsUploadBtn" disabled onclick="submitQuickSpec()">
+            &#9654; Parse &amp; Save
+        </button>
+    </div>
+
+    <div id="qsProgress" class="qs-progress" style="display:none">
+        <div class="qs-progress-bar" id="qsProgressBar"></div>
+        <span class="qs-progress-label" id="qsProgressLabel">Uploading…</span>
+    </div>
+
+    <div id="qsResult" class="qs-result" style="display:none"></div>
+</div>
+
+<script>
+(function () {
+    const fileInput  = document.getElementById('qsFileInput');
+    const fileName   = document.getElementById('qsFileName');
+    const uploadBtn  = document.getElementById('qsUploadBtn');
+    const dropArea   = document.getElementById('qsDropArea');
+
+    function setFile(file) {
+        if (!file || !file.name.toLowerCase().endsWith('.pdf')) {
+            alert('Please select a PDF file.');
+            return;
+        }
+        fileInput._selectedFile = file;
+        fileName.textContent    = file.name;
+        uploadBtn.disabled      = false;
+        dropArea.classList.add('qs-has-file');
+    }
+
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files[0]) setFile(fileInput.files[0]);
+    });
+
+    dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.classList.add('qs-drag-over'); });
+    dropArea.addEventListener('dragleave', ()  => dropArea.classList.remove('qs-drag-over'));
+    dropArea.addEventListener('drop', e => {
+        e.preventDefault();
+        dropArea.classList.remove('qs-drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) setFile(file);
+    });
+})();
+
+async function submitQuickSpec() {
+    const fileInput = document.getElementById('qsFileInput');
+    const file = fileInput._selectedFile || (fileInput.files && fileInput.files[0]);
+    if (!file) { alert('Please select a PDF file.'); return; }
+
+    const btn      = document.getElementById('qsUploadBtn');
+    const progress = document.getElementById('qsProgress');
+    const bar      = document.getElementById('qsProgressBar');
+    const label    = document.getElementById('qsProgressLabel');
+    const result   = document.getElementById('qsResult');
+
+    btn.disabled    = true;
+    result.style.display  = 'none';
+    progress.style.display = 'flex';
+    label.textContent = 'Uploading PDF…';
+    bar.style.width   = '20%';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    // Determine BASE from the page's <base> tag or window location
+    const base = (document.querySelector('base') || {href: '/'}).getAttribute('href').replace(/\/$/, '');
+
+    try {
+        label.textContent = 'Parsing QuickSpec…';
+        bar.style.width   = '60%';
+
+        const resp = await fetch(`${base}/api/admin/quickspec/upload`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        bar.style.width = '100%';
+        label.textContent = 'Done.';
+
+        const data = await resp.json();
+        progress.style.display = 'none';
+
+        if (!resp.ok) {
+            result.className = 'qs-result qs-result-error';
+            result.innerHTML = `<strong>Error:</strong> ${data.error || 'Unknown error'}`;
+        } else {
+            result.className = 'qs-result qs-result-success';
+            result.innerHTML = `
+                <div class="qs-success-header">&#10003; QuickSpec Parsed Successfully</div>
+                <div class="qs-summary-grid">
+                    <div class="qs-summary-item">
+                        <span class="qs-summary-label">Server</span>
+                        <span class="qs-summary-value">${data.server_name}</span>
+                    </div>
+                    ${data.model_number ? `<div class="qs-summary-item">
+                        <span class="qs-summary-label">Model</span>
+                        <span class="qs-summary-value mono">${data.model_number}</span>
+                    </div>` : ''}
+                    ${data.form_factor ? `<div class="qs-summary-item">
+                        <span class="qs-summary-label">Form Factor</span>
+                        <span class="qs-summary-value">${data.form_factor}</span>
+                    </div>` : ''}
+                    ${data.generation ? `<div class="qs-summary-item">
+                        <span class="qs-summary-label">Generation</span>
+                        <span class="qs-summary-value">${data.generation}</span>
+                    </div>` : ''}
+                    <div class="qs-summary-item qs-summary-highlight">
+                        <span class="qs-summary-label">New Components</span>
+                        <span class="qs-summary-value">${data.components_new}</span>
+                    </div>
+                    <div class="qs-summary-item">
+                        <span class="qs-summary-label">Already Known</span>
+                        <span class="qs-summary-value">${data.components_existing}</span>
+                    </div>
+                    <div class="qs-summary-item">
+                        <span class="qs-summary-label">Total Parsed</span>
+                        <span class="qs-summary-value">${data.total}</span>
+                    </div>
+                </div>
+                <a class="btn-qs-view" href="${base}/admin/servers/${data.server_id}/components" target="_blank">
+                    View Component Catalog &#8599;
+                </a>
+            `;
+        }
+        result.style.display = 'block';
+        btn.disabled = false;
+    } catch (err) {
+        progress.style.display = 'none';
+        result.className = 'qs-result qs-result-error';
+        result.innerHTML = `<strong>Error:</strong> ${err.message}`;
+        result.style.display = 'block';
+        btn.disabled = false;
+    }
+}
+</script>
+
+</body>
+</html>

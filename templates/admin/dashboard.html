@@ -13,6 +13,7 @@
         <aside class="admin-sidebar">
             <div class="admin-sidebar-header">
                 <h2>Admin Panel</h2>
+                <span class="branch-badge">{{ git_branch }}</span>
                 <a href="./" class="back-link">← Back to Main</a>
             </div>
 
@@ -63,6 +64,21 @@
                         <li>
                             <a href="#" class="admin-menu-item" data-view="entered-components">
                                 Entered Components
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="admin-menu-section">
+                    <h3 class="admin-menu-header">Spec Parser</h3>
+                    <ul class="admin-menu-list">
+                        <li>
+                            <a href="#" class="admin-menu-item" data-view="quickspec-upload">
+                                Upload QuickSpec
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="admin-menu-item" data-view="servers">
+                                Server Catalog
                             </a>
                         </li>
                     </ul>
@@ -123,6 +139,10 @@
                     await loadEnteredComponentsView();
                 } else if (view === 'quotes') {
                     await loadQuotesView();
+                } else if (view === 'quickspec-upload') {
+                    await loadQuickSpecUploadView();
+                } else if (view === 'servers') {
+                    await loadServersView();
                 } else if (view === 'transactions') {
                     await loadTransactionsView();
                 } else if (view === 'transaction-types') {
@@ -343,6 +363,59 @@
                     row.style.display = (type === 'all' || row.dataset.type === type) ? '' : 'none';
                 });
             });
+        }
+
+        async function loadQuickSpecUploadView() {
+            const contentArea = document.getElementById('contentArea');
+            contentArea.innerHTML = '<div class="loading">Loading QuickSpec uploader…</div>';
+            try {
+                const response = await fetch(`${BASE}/admin/quickspec/upload`);
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const content = doc.querySelector('.quickspec-upload-content');
+                contentArea.innerHTML = content ? content.outerHTML : html;
+                // Re-bind drag-and-drop and file input after injection
+                const fileInput = contentArea.querySelector('#qsFileInput');
+                const fileName  = contentArea.querySelector('#qsFileName');
+                const uploadBtn = contentArea.querySelector('#qsUploadBtn');
+                const dropArea  = contentArea.querySelector('#qsDropArea');
+                if (fileInput) {
+                    function setFile(file) {
+                        if (!file || !file.name.toLowerCase().endsWith('.pdf')) {
+                            alert('Please select a PDF file.'); return;
+                        }
+                        fileInput._selectedFile = file;
+                        fileName.textContent    = file.name;
+                        uploadBtn.disabled      = false;
+                        dropArea.classList.add('qs-has-file');
+                    }
+                    fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+                    dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.classList.add('qs-drag-over'); });
+                    dropArea.addEventListener('dragleave', () => dropArea.classList.remove('qs-drag-over'));
+                    dropArea.addEventListener('drop', e => {
+                        e.preventDefault(); dropArea.classList.remove('qs-drag-over');
+                        if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+                    });
+                }
+            } catch (error) {
+                contentArea.innerHTML = `<div class="error">Error loading uploader: ${error.message}</div>`;
+            }
+        }
+
+        async function loadServersView() {
+            const contentArea = document.getElementById('contentArea');
+            contentArea.innerHTML = '<div class="loading">Loading server catalog…</div>';
+            try {
+                const response = await fetch(`${BASE}/admin/servers`);
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const content = doc.querySelector('.servers-content');
+                contentArea.innerHTML = content ? content.outerHTML : html;
+            } catch (error) {
+                contentArea.innerHTML = `<div class="error">Error loading servers: ${error.message}</div>`;
+            }
         }
 
         async function loadTransactionsView() {
