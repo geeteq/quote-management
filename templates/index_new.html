@@ -418,10 +418,12 @@
         const NIC_ROLES = ['Production NIC', 'Management NIC', 'Storage NIC', 'Additional NIC'];
 
         function buildBasicNicRow(role) {
-            const opts = nicCatalog.map(n =>
-                `<option value="${n.part_number}" data-desc="${(n.description||'').replace(/"/g,'&quot;')}">`+
-                `[${n.manufacturer}] ${n.part_number}${n.description ? ' — ' + n.description.slice(0,55) : ''}</option>`
-            ).join('');
+            const opts = nicCatalog.map(n => {
+                const desc = n.description || n.part_number;
+                const label = desc.length > 60 ? desc.slice(0, 58) + '…' : desc;
+                const safeDesc = desc.replace(/"/g, '&quot;');
+                return `<option value="${n.part_number}" data-desc="${safeDesc}">${label} (${n.part_number})</option>`;
+            }).join('');
             const roleOpts = NIC_ROLES.map(r =>
                 `<option value="${r}"${r === role ? ' selected' : ''}>${r}</option>`
             ).join('');
