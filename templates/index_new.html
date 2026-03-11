@@ -806,7 +806,7 @@
                 <div class="quote-card-mini ${selectedQuotes.has(quote.id) ? 'selected' : ''}"
                      onclick="window.location.href=BASE + '/quote/${quote.id}'">
                     <div class="quote-card-header">
-                        <div class="vendor-badge ${quote.vendor.toLowerCase()}">${quote.vendor}</div>
+                        <div class="vendor-badge ${(quote.vendor||'').toLowerCase()}">${quote.vendor||''}</div>
                         <div style="display:flex;align-items:center;gap:4px;">
                             <div class="quote-id">${quote.quote_id}</div>
                             <label class="card-compare-check" onclick="event.stopPropagation()" title="Select for comparison">

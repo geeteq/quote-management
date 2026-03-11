@@ -466,8 +466,6 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
                 item.get('delivery_time')
             ))
 
-            line_item_id = cursor.lastrowid
-
         db.commit()
         return quote_db_id
 
@@ -1491,6 +1489,8 @@ def api_config_match(config_id):
             'project_id':  project_id,
             'quotes':      results,
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
     finally:
         db.close()
 
@@ -2084,12 +2084,12 @@ def admin_server_components(server_id):
         return 'Server not found', 404
 
     components = db.execute("""
-        SELECT cc.component_type, cc.model AS part_number, cc.description,
+        SELECT cc.component_type, cc.part_number, cc.description,
                sqc.component_role, sqc.is_standard, sqc.is_optional, sqc.created_at
         FROM server_quickspec_components sqc
         JOIN component_catalog cc ON sqc.catalog_id = cc.id
         WHERE sqc.server_id = ?
-        ORDER BY cc.component_type, cc.model
+        ORDER BY cc.component_type, cc.part_number
     """, (server_id,)).fetchall()
     db.close()
     return render_template(
@@ -2100,11 +2100,10 @@ def admin_server_components(server_id):
 
 
 if __name__ == '__main__':
-    # Initialize database if it doesn't exist
+    # Initialize database if it doesn't exist, then apply migrations either way
     if not os.path.exists(app.config['DATABASE']):
         init_db()
-    else:
-        migrate_db()
+    migrate_db()
 
     logger.info(f"Loaded DB: {app.config['DATABASE']}")
     app.run(debug=True, host='0.0.0.0', port=5001)

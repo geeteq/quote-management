@@ -296,7 +296,7 @@ class QuickSpecParser:
             return FORM_FACTOR_BY_MODEL[key]
         if key.startswith('BL') or key.startswith('MX') or key.startswith('FC'):
             return 'Blade'
-        if key.startswith('ML') or key.startswith('T'):
+        if key.startswith('ML') or re.match(r'^T\d', key):
             return 'Tower'
         return None
 
