@@ -1852,6 +1852,10 @@ def _save_quickspec_to_db(server_data: dict, components: list, pdf_path: str) ->
         ).fetchone()
         server_id = server_row['id']
 
+        # Replace strategy: clear all existing component links for this server so a
+        # re-upload fully replaces the classification (avoids stale Disk entries for NICs etc.)
+        db.execute("DELETE FROM server_quickspec_components WHERE server_id = ?", (server_id,))
+
         TYPE_NORMALIZER = {
             'CPU': 'CPU', 'Memory': 'Memory', 'Disk': 'Disk',
             'Storage Controller': 'Storage Controller', 'Network Card': 'Network Card',
@@ -1882,12 +1886,6 @@ def _save_quickspec_to_db(server_data: dict, components: list, pdf_path: str) ->
             if not cat_row:
                 continue
             catalog_id = cat_row['id']
-
-            already_linked = db.execute(
-                "SELECT id FROM server_quickspec_components "
-                "WHERE server_id = ? AND catalog_id = ?",
-                (server_id, catalog_id)
-            ).fetchone()
 
             db.execute("""
                 INSERT OR IGNORE INTO server_quickspec_components
