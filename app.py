@@ -1818,7 +1818,7 @@ def _save_quickspec_to_db(server_data: dict, components: list, pdf_path: str) ->
                                 Uses part_number as model field per design spec
     - server_quickspec_components: INSERT OR IGNORE on (server_id, catalog_id)
 
-    Returns summary: {server_name, server_id, components_new, components_existing, total}
+    Returns summary: {server_name, server_id, components_new, total}
     """
     db = get_db()
     try:
@@ -1863,8 +1863,7 @@ def _save_quickspec_to_db(server_data: dict, components: list, pdf_path: str) ->
             'Additional Hardware': 'Additional Hardware',
         }
 
-        components_new      = 0
-        components_existing = 0
+        components_new = 0
 
         for comp in components:
             ctype = TYPE_NORMALIZER.get(comp['component_type'], 'Additional Hardware')
@@ -1898,10 +1897,7 @@ def _save_quickspec_to_db(server_data: dict, components: list, pdf_path: str) ->
                 1 if comp.get('is_optional') else 0,
             ))
 
-            if already_linked:
-                components_existing += 1
-            else:
-                components_new += 1
+            components_new += 1
 
         db.commit()
         return {
@@ -1910,9 +1906,8 @@ def _save_quickspec_to_db(server_data: dict, components: list, pdf_path: str) ->
             'model_number':        server_data.get('model_number'),
             'form_factor':         server_data.get('form_factor'),
             'generation':          server_data.get('generation'),
-            'components_new':      components_new,
-            'components_existing': components_existing,
-            'total':               len(components),
+            'components_new': components_new,
+            'total':          len(components),
         }
     except Exception:
         db.rollback()
@@ -1977,7 +1972,7 @@ def api_quickspec_upload():
 
         logger.info(
             f"QuickSpec saved: {server['model_name']} — "
-            f"{summary['components_new']} new, {summary['components_existing']} existing components"
+            f"{summary['components_new']} components saved"
         )
         return jsonify(summary)
 
