@@ -321,6 +321,7 @@ class QuickSpecParser:
     # Description-based overrides: (pattern, forced_component_type)
     # Applied after section-based classification; most specific rules first.
     _DESC_RECLASSIFY = [
+        (re.compile(r'(?i)\b(ddr[345]?|dimm|sodimm|udimm|rdimm|lrdimm|3ds\s+smart\s+memory|smart\s+memory\s+kit|memory\s+kit)\b'), 'Memory'),
         (re.compile(r'(?i)\b(xeon|processor)\b'),                               'CPU'),
         (re.compile(r'(?i)\bethernet\b.{0,60}(adapter|nic|card|ocp\d?)'),       'Network Card'),
         (re.compile(r'(?i)(adapter|nic|card).{0,60}(ethernet|10g|25g|100g)'),   'Network Card'),
@@ -342,6 +343,12 @@ class QuickSpecParser:
     # Descriptions that indicate a garbage/placeholder row — skip entirely
     _DESC_GARBAGE_RE = re.compile(
         r'(?i)^(sku\s+number|system\s+config(uration)?|tbd|n/?a|see\s+note|contact\s+hpe)$'
+    )
+
+    # Lines that are cross-reference/requirement notes even if they contain PNs
+    _LINE_SKIP_RE = re.compile(
+        r'(?i)(requirements?\s+are\s*:|compatible\s+with\s*:|requires?\s+p/n|'
+        r'see\s+also\s*:|for\s+use\s+with\s*:)',
     )
 
     def _extract_components_hpe_lines(self) -> List[Dict]:
@@ -368,6 +375,10 @@ class QuickSpecParser:
 
             # ── Skip note lines (HPE convention: notes start with − / - / •)
             if self._NOTE_LINE_RE.match(stripped):
+                continue
+
+            # ── Skip cross-reference / requirements lines
+            if self._LINE_SKIP_RE.search(stripped):
                 continue
 
             # ── Skip continuation prose lines (start with lowercase = mid-sentence)
