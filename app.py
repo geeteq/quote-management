@@ -468,34 +468,6 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
 
             line_item_id = cursor.lastrowid
 
-            # Legacy: Also insert into components table for backward compatibility
-            cursor.execute('''
-                INSERT INTO components (line_item_id, component_type, manufacturer,
-                                       part_number, model, specs_json, quantity)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                line_item_id,
-                component_details['type'],
-                component_details['manufacturer'],
-                item.get('product_number'),
-                component_details['model'],
-                json.dumps(component_details['specs']),
-                item.get('quantity', 1)
-            ))
-
-            component_id = cursor.lastrowid
-
-            # Add manufacturer link if available
-            manufacturer_url = get_manufacturer_url(
-                component_details['manufacturer'],
-                component_details['model']
-            )
-            if manufacturer_url:
-                cursor.execute('''
-                    INSERT INTO component_links (component_id, url, url_type)
-                    VALUES (?, ?, ?)
-                ''', (component_id, manufacturer_url, 'product'))
-
         db.commit()
         return quote_db_id
 
@@ -505,15 +477,6 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
     finally:
         db.close()
 
-
-def get_manufacturer_url(manufacturer, model):
-    """Generate manufacturer product URL."""
-    urls = {
-        'Intel': f'https://ark.intel.com/content/www/us/en/ark/search.html?q={model}',
-        'HPE': f'https://www.hpe.com/us/en/search.html?q={model}',
-        'Broadcom': f'https://www.broadcom.com/products/ethernet-connectivity/network-adapters',
-    }
-    return urls.get(manufacturer)
 
 
 def get_quote_by_id(quote_db_id):
