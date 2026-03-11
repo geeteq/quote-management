@@ -60,6 +60,11 @@
                                 Learned Components
                             </a>
                         </li>
+                        <li>
+                            <a href="#" class="admin-menu-item" data-view="entered-components">
+                                Entered Components
+                            </a>
+                        </li>
                     </ul>
                 </div>
             </nav>
@@ -99,6 +104,8 @@
                     await loadProjectsView();
                 } else if (view === 'components') {
                     await loadComponentsView();
+                } else if (view === 'entered-components') {
+                    await loadEnteredComponentsView();
                 } else if (view === 'quotes') {
                     await loadQuotesView();
                 }
@@ -199,6 +206,36 @@
                 }
             } catch (error) {
                 contentArea.innerHTML = `<div class="error">Error loading tenant projects: ${error.message}</div>`;
+            }
+        }
+
+        async function loadEnteredComponentsView() {
+            const contentArea = document.getElementById('contentArea');
+            contentArea.innerHTML = '<div class="loading">Loading entered components...</div>';
+            try {
+                const response = await fetch(`${BASE}/admin/entered-components`);
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const content = doc.querySelector('.entered-components-content');
+                contentArea.innerHTML = content ? content.outerHTML : html;
+                // init search
+                const input = contentArea.querySelector('#enteredSearch');
+                const countEl = contentArea.querySelector('#enteredSearchCount');
+                if (input) {
+                    const rows = Array.from(contentArea.querySelectorAll('#enteredTable tbody tr'));
+                    const total = rows.length;
+                    const update = n => countEl.textContent = n < total ? `${n} of ${total}` : `${total} components`;
+                    update(total);
+                    input.addEventListener('input', () => {
+                        const q = input.value.trim().toLowerCase();
+                        let n = 0;
+                        rows.forEach(r => { const s = !q || r.textContent.toLowerCase().includes(q); r.style.display = s ? '' : 'none'; if (s) n++; });
+                        update(n);
+                    });
+                }
+            } catch (error) {
+                contentArea.innerHTML = `<div class="error">Error loading entered components: ${error.message}</div>`;
             }
         }
 

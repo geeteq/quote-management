@@ -420,3 +420,41 @@ CREATE INDEX IF NOT EXISTS idx_catalog_manufacturer ON component_catalog(manufac
 CREATE INDEX IF NOT EXISTS idx_catalog_model ON component_catalog(model);
 CREATE INDEX IF NOT EXISTS idx_catalog_part_number ON component_catalog(part_number);
 CREATE INDEX IF NOT EXISTS idx_line_items_catalog ON line_items(catalog_component_id);
+
+-- =============================================================================
+-- MANUFACTURERS
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS manufacturers (
+    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+);
+
+-- =============================================================================
+-- BASE CONFIGURATIONS
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS base_configs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    config_name TEXT    NOT NULL,
+    project_id  INTEGER NOT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
+-- =============================================================================
+-- ENTERED COMPONENTS (manually entered, never modifies learned components)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS entered_components (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    config_id       INTEGER NOT NULL,
+    component_type  TEXT,
+    manufacturer_id INTEGER,
+    part_number     TEXT,
+    specs           TEXT,
+    model           TEXT,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (config_id)       REFERENCES base_configs(id) ON DELETE CASCADE,
+    FOREIGN KEY (manufacturer_id) REFERENCES manufacturers(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_base_configs_project ON base_configs(project_id);
+CREATE INDEX IF NOT EXISTS idx_entered_comp_config  ON entered_components(config_id);

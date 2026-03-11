@@ -153,11 +153,39 @@
         </div>
     </div>
 
+    <!-- Add Config Modal -->
+    <div id="addConfigModal" class="modal" style="display:none;">
+        <div class="modal-content modal-wide">
+            <div class="modal-header">
+                <h2>Add Base Config</h2>
+                <button class="modal-close" onclick="closeConfigModal()">&times;</button>
+            </div>
+            <div class="form-group">
+                <label for="configName">Config Name <span class="required">*</span></label>
+                <input type="text" id="configName" placeholder="e.g., Standard 2-Socket Server">
+            </div>
+            <div class="config-components-section">
+                <div class="config-section-toolbar">
+                    <h3>Components</h3>
+                    <button class="btn-secondary btn-sm" onclick="addComponentRow()">+ Add Component</button>
+                </div>
+                <div id="componentRows"></div>
+            </div>
+            <div class="form-actions">
+                <button class="btn-primary" onclick="saveConfig()">Save Config</button>
+                <button class="btn-secondary" onclick="closeConfigModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const BASE = document.querySelector('base').getAttribute('href').replace(/\/$/, '');
         let navigationData = [];
         let selectedProjectId = null;
         const selectedQuotes = new Set();
+        let configModalProjectId = null;
+        let manufacturers = [];
+        let learnedComponents = [];
 
         function toggleQuoteSelection(id) {
             if (selectedQuotes.has(id)) {
@@ -206,14 +234,135 @@
         }
 
         async function refreshCurrentView() {
-            const content = document.getElementById('quotesContent');
             if (selectedProjectId) {
-                const response = await fetch(`${BASE}/api/projects/${selectedProjectId}/quotes`);
-                renderQuotes(await response.json());
+                const [configsRes, quotesRes] = await Promise.all([
+                    fetch(`${BASE}/api/projects/${selectedProjectId}/configs`),
+                    fetch(`${BASE}/api/projects/${selectedProjectId}/quotes`)
+                ]);
+                renderProjectView(await configsRes.json(), await quotesRes.json(), selectedProjectId);
             } else {
                 const response = await fetch(`${BASE}/api/quotes/unassigned`);
                 renderQuotes(await response.json());
             }
+        }
+
+        // ── Config Modal ──────────────────────────────────────────────────────
+
+        async function showAddConfigModal(projectId) {
+            configModalProjectId = projectId;
+            document.getElementById('configName').value = '';
+            document.getElementById('componentRows').innerHTML = '';
+            if (!manufacturers.length) {
+                const r = await fetch(`${BASE}/api/manufacturers`);
+                manufacturers = await r.json();
+            }
+            if (!learnedComponents.length) {
+                const r = await fetch(`${BASE}/api/components/learned`);
+                learnedComponents = await r.json();
+            }
+            document.getElementById('addConfigModal').style.display = 'flex';
+        }
+
+        function closeConfigModal() {
+            document.getElementById('addConfigModal').style.display = 'none';
+        }
+
+        function addComponentRow() {
+            const container = document.getElementById('componentRows');
+            const row = document.createElement('div');
+            row.className = 'comp-row';
+
+            const mfgOptions = manufacturers.map(m =>
+                `<option value="${m.id}">${m.name}</option>`).join('');
+            const learnedOptions = learnedComponents.map((c, i) =>
+                `<option value="${i}">${c.component_type} — ${c.manufacturer || ''} ${c.part_number || ''} ${c.model || ''}</option>`).join('');
+            const typeOptions = ['CPU','Memory','Disk','Network Card','Power Supply','GPU','Storage Controller','Additional Hardware']
+                .map(t => `<option value="${t}">${t}</option>`).join('');
+
+            row.innerHTML = `
+                <div class="comp-row-learned">
+                    <label>Import from learned components</label>
+                    <select class="comp-learned" onchange="fillFromLearned(this)">
+                        <option value="">— Select to auto-fill —</option>
+                        ${learnedOptions}
+                    </select>
+                </div>
+                <div class="comp-row-fields">
+                    <div class="comp-field">
+                        <label>Type</label>
+                        <select class="comp-type"><option value="">— Select —</option>${typeOptions}</select>
+                    </div>
+                    <div class="comp-field">
+                        <label>Manufacturer</label>
+                        <select class="comp-mfg"><option value="">— Select —</option>${mfgOptions}</select>
+                    </div>
+                    <div class="comp-field">
+                        <label>Part Number</label>
+                        <input type="text" class="comp-part" placeholder="Part number">
+                    </div>
+                    <div class="comp-field">
+                        <label>Model</label>
+                        <input type="text" class="comp-model" placeholder="Model">
+                    </div>
+                    <div class="comp-field comp-field-wide">
+                        <label>Specs</label>
+                        <input type="text" class="comp-specs" placeholder="e.g., 64GB DDR5 4800MHz">
+                    </div>
+                    <button class="btn-remove-comp" onclick="this.closest('.comp-row').remove()" title="Remove">&times;</button>
+                </div>
+            `;
+            container.appendChild(row);
+        }
+
+        function fillFromLearned(select) {
+            const idx = select.value;
+            if (idx === '') return;
+            const c = learnedComponents[parseInt(idx)];
+            const row = select.closest('.comp-row');
+            const setVal = (sel, val) => { if (val) sel.value = val; };
+            setVal(row.querySelector('.comp-type'), c.component_type);
+            row.querySelector('.comp-part').value  = c.part_number || '';
+            row.querySelector('.comp-model').value = c.model || '';
+            // Try to match manufacturer by name
+            const mfgSel = row.querySelector('.comp-mfg');
+            const opt = Array.from(mfgSel.options).find(o => o.text === c.manufacturer);
+            if (opt) mfgSel.value = opt.value;
+            try {
+                const specs = JSON.parse(c.specs_json || '{}');
+                row.querySelector('.comp-specs').value = Object.entries(specs)
+                    .filter(([,v]) => v).map(([k,v]) => `${k}: ${v}`).join(', ');
+            } catch (_) {}
+        }
+
+        async function saveConfig() {
+            const name = document.getElementById('configName').value.trim();
+            if (!name) { alert('Config name is required.'); return; }
+            const rows = document.querySelectorAll('#componentRows .comp-row');
+            const components = Array.from(rows).map(row => ({
+                component_type:  row.querySelector('.comp-type').value || null,
+                manufacturer_id: row.querySelector('.comp-mfg').value  || null,
+                part_number:     row.querySelector('.comp-part').value  || null,
+                model:           row.querySelector('.comp-model').value || null,
+                specs:           row.querySelector('.comp-specs').value || null,
+            }));
+            const resp = await fetch(`${BASE}/api/projects/${configModalProjectId}/configs`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({config_name: name, components})
+            });
+            if (resp.ok) {
+                closeConfigModal();
+                refreshCurrentView();
+            } else {
+                const err = await resp.json();
+                alert('Error: ' + (err.error || 'Unknown error'));
+            }
+        }
+
+        async function deleteConfig(configId) {
+            if (!confirm('Delete this config and all its components?')) return;
+            const resp = await fetch(`${BASE}/api/configs/${configId}`, {method: 'DELETE'});
+            if (resp.ok) refreshCurrentView();
         }
 
         async function archiveQuote(id) {
@@ -301,31 +450,111 @@
             }
         }
 
-        // Load quotes for a project
+        // Load project view (Base Configs + Quotes)
         async function loadProjectQuotes(projectId, projectName, event) {
             event.stopPropagation();
             selectedProjectId = projectId;
             clearSelection();
 
-            // Update active state
             document.querySelectorAll('.nav-project').forEach(el => el.classList.remove('active'));
             event.currentTarget.classList.add('active');
 
-            // Update header
             document.getElementById('contentTitle').textContent = projectName;
-            document.getElementById('contentSubtitle').textContent = 'Project Quotes';
+            document.getElementById('contentSubtitle').textContent = 'Project';
 
-            // Load quotes
             const content = document.getElementById('quotesContent');
-            content.innerHTML = '<div class="loading">Loading quotes...</div>';
+            content.innerHTML = '<div class="loading">Loading...</div>';
 
             try {
-                const response = await fetch(`${BASE}/api/projects/${projectId}/quotes`);
-                const quotes = await response.json();
-                renderQuotes(quotes);
+                const [configsRes, quotesRes] = await Promise.all([
+                    fetch(`${BASE}/api/projects/${projectId}/configs`),
+                    fetch(`${BASE}/api/projects/${projectId}/quotes`)
+                ]);
+                const configs = await configsRes.json();
+                const quotes  = await quotesRes.json();
+                renderProjectView(configs, quotes, projectId);
             } catch (error) {
-                content.innerHTML = `<div class="error">Error loading quotes: ${error.message}</div>`;
+                content.innerHTML = `<div class="error">Error loading project: ${error.message}</div>`;
             }
+        }
+
+        function renderProjectView(configs, quotes, projectId) {
+            const content = document.getElementById('quotesContent');
+            content.innerHTML = `
+                <div class="project-section">
+                    <div class="project-section-header">
+                        <h2 class="project-section-title">Base Configs</h2>
+                        <button class="btn-add-config" onclick="showAddConfigModal(${projectId})">+ Add Config</button>
+                    </div>
+                    <div id="configsArea">${renderConfigs(configs)}</div>
+                </div>
+                <div class="project-section">
+                    <div class="project-section-header">
+                        <h2 class="project-section-title">Quotes</h2>
+                    </div>
+                    <div id="quotesArea">${renderQuotesHtml(quotes)}</div>
+                </div>
+            `;
+        }
+
+        function renderConfigs(configs) {
+            if (!configs.length) return '<p class="empty-section-hint">No base configs yet. Click "+ Add Config" to create one.</p>';
+            return `<div class="configs-grid">${configs.map(c => `
+                <div class="config-card">
+                    <div class="config-card-header">
+                        <span class="config-name">${c.config_name}</span>
+                        <button class="btn-delete-config" onclick="deleteConfig(${c.id})" title="Delete config">&times;</button>
+                    </div>
+                    ${c.components.length ? `
+                    <table class="config-components-table">
+                        <thead><tr><th>Type</th><th>Manufacturer</th><th>Part #</th><th>Model</th><th>Specs</th></tr></thead>
+                        <tbody>${c.components.map(comp => `
+                            <tr>
+                                <td><span class="component-type-badge">${comp.component_type || '—'}</span></td>
+                                <td>${comp.manufacturer_name || '—'}</td>
+                                <td class="mono">${comp.part_number || '—'}</td>
+                                <td>${comp.model || '—'}</td>
+                                <td class="specs-cell">${comp.specs || '—'}</td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>` : '<p class="empty-section-hint">No components.</p>'}
+                </div>`).join('')}
+            </div>`;
+        }
+
+        function renderQuotesHtml(quotes) {
+            if (!quotes.length) return '<div class="empty-state"><p>No quotes for this project.</p></div>';
+            return `<div class="quotes-grid-mini">${quotes.map(quote => `
+                <div class="quote-card-mini ${selectedQuotes.has(quote.id) ? 'selected' : ''}"
+                     onclick="window.location.href=BASE + '/quote/${quote.id}'">
+                    <div class="quote-card-header">
+                        <div class="vendor-badge ${quote.vendor.toLowerCase()}">${quote.vendor}</div>
+                        <div style="display:flex;align-items:center;gap:4px;">
+                            <div class="quote-id">${quote.quote_id}</div>
+                            <label class="card-compare-check" onclick="event.stopPropagation()" title="Select for comparison">
+                                <input type="checkbox" data-id="${quote.id}"
+                                       ${selectedQuotes.has(quote.id) ? 'checked' : ''}
+                                       onchange="toggleQuoteSelection(${quote.id})">
+                            </label>
+                        </div>
+                    </div>
+                    <h3>${quote.customer_name || 'N/A'}</h3>
+                    <div class="quote-metadata">
+                        <div class="metadata-item"><span class="metadata-label">Date:</span><span class="metadata-value">${quote.quote_date || 'N/A'}</span></div>
+                        <div class="metadata-item"><span class="metadata-label">Expires:</span><span class="metadata-value${quote.expiry_date && new Date(quote.expiry_date) < new Date() ? ' expired-date' : ''}">${quote.expiry_date || 'N/A'}</span></div>
+                        ${quote.ica ? `<div class="metadata-item"><span class="metadata-label">ICA:</span><span class="metadata-value">${quote.ica}</span></div>` : ''}
+                        ${quote.description ? `<div class="metadata-item"><span class="metadata-label">Description:</span><span class="metadata-value">${quote.description}</span></div>` : ''}
+                        ${quote.po_comments ? `<div class="metadata-item"><span class="metadata-label">PO Comments:</span><span class="metadata-value">${quote.po_comments}</span></div>` : ''}
+                    </div>
+                    <div class="quote-footer">
+                        <button class="btn-archive" onclick="event.stopPropagation(); archiveQuote(${quote.id})" title="Archive quote">
+                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 2a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm0 5a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm5 1v1H6v1h4V9h-1V8H6zm0 0" fill="currentColor"/></svg>
+                            Archive
+                        </button>
+                        <span class="price">${quote.currency} ${parseFloat(quote.total_amount).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                    </div>
+                </div>`).join('')}
+            </div>`;
         }
 
         // Load unassigned quotes
@@ -360,76 +589,13 @@
             }
         }
 
-        // Render quotes as cards
+        // Render quotes as cards (unassigned view)
         function renderQuotes(quotes) {
             const content = document.getElementById('quotesContent');
-
-            if (quotes.length === 0) {
-                content.innerHTML = `
-                    <div class="empty-state">
-                        <p>No quotes found for this project.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            const html = quotes.map(quote => `
-                <div class="quote-card-mini ${selectedQuotes.has(quote.id) ? 'selected' : ''}"
-                     onclick="window.location.href=BASE + '/quote/${quote.id}'">
-                    <div class="quote-card-header">
-                        <div class="vendor-badge ${quote.vendor.toLowerCase()}">${quote.vendor}</div>
-                        <div style="display:flex;align-items:center;gap:4px;">
-                            <div class="quote-id">${quote.quote_id}</div>
-                            <label class="card-compare-check" onclick="event.stopPropagation()" title="Select for comparison">
-                                <input type="checkbox" data-id="${quote.id}"
-                                       ${selectedQuotes.has(quote.id) ? 'checked' : ''}
-                                       onchange="toggleQuoteSelection(${quote.id})">
-                            </label>
-                        </div>
-                    </div>
-                    <h3>${quote.customer_name || 'N/A'}</h3>
-                    <div class="quote-metadata">
-                        <div class="metadata-item">
-                            <span class="metadata-label">Date:</span>
-                            <span class="metadata-value">${quote.quote_date || 'N/A'}</span>
-                        </div>
-                        <div class="metadata-item">
-                            <span class="metadata-label">Expires:</span>
-                            <span class="metadata-value${quote.expiry_date && new Date(quote.expiry_date) < new Date() ? ' expired-date' : ''}">${quote.expiry_date || 'N/A'}</span>
-                        </div>
-                        ${quote.ica ? `
-                        <div class="metadata-item">
-                            <span class="metadata-label">ICA:</span>
-                            <span class="metadata-value">${quote.ica}</span>
-                        </div>
-                        ` : ''}
-                        ${quote.description ? `
-                        <div class="metadata-item">
-                            <span class="metadata-label">Description:</span>
-                            <span class="metadata-value">${quote.description}</span>
-                        </div>
-                        ` : ''}
-                        ${quote.po_comments ? `
-                        <div class="metadata-item">
-                            <span class="metadata-label">PO Comments:</span>
-                            <span class="metadata-value">${quote.po_comments}</span>
-                        </div>
-                        ` : ''}
-                    </div>
-                    <div class="quote-footer">
-                        <button class="btn-archive" onclick="event.stopPropagation(); archiveQuote(${quote.id})" title="Archive quote">
-                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M1 2a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm0 5a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm5 1v1H6v1h4V9h-1V8H6zm0 0" fill="currentColor"/>
-                            </svg>
-                            Archive
-                        </button>
-                        <span class="price">${quote.currency} ${parseFloat(quote.total_amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                    </div>
-                </div>
-            `).join('');
-
-            content.innerHTML = `<div class="quotes-grid-mini">${html}</div>`;
+            content.innerHTML = renderQuotesHtml(quotes);
         }
+
+
 
         // Upload Modal Functions
         function showUploadModal() {

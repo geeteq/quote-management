@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <base href="{{ base_href }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entered Components - Admin</title>
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+    <div class="entered-components-content">
+        <div class="admin-content-header">
+            <h1>Entered Components</h1>
+            <span class="admin-record-count">{{ components|length }} components</span>
+        </div>
+
+        {% if components %}
+        <div class="components-toolbar">
+            <input type="search" id="enteredSearch" class="admin-search-input"
+                   placeholder="Search by type, manufacturer, part number, model, config, project…">
+            <span class="components-summary-stat" id="enteredSearchCount"></span>
+        </div>
+
+        <div class="components-table-wrapper">
+            <table class="components-table" id="enteredTable">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Manufacturer</th>
+                        <th>Part Number</th>
+                        <th>Model</th>
+                        <th>Specs</th>
+                        <th>Config</th>
+                        <th>Project</th>
+                        <th>Tenant</th>
+                        <th>Added</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in components %}
+                    <tr>
+                        <td><span class="component-type-badge">{{ c.component_type or '—' }}</span></td>
+                        <td>{{ c.manufacturer_name or '—' }}</td>
+                        <td class="mono">{{ c.part_number or '—' }}</td>
+                        <td>{{ c.model or '—' }}</td>
+                        <td class="specs-cell">{{ c.specs or '—' }}</td>
+                        <td>{{ c.config_name or '—' }}</td>
+                        <td>{{ c.project_name or '—' }}</td>
+                        <td>{{ c.tenant_name or '—' }}</td>
+                        <td class="date-muted">{{ c.created_at[:10] if c.created_at else '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No manually entered components yet. Add base configs to a project to get started.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        (function () {
+            const input = document.getElementById('enteredSearch');
+            const countEl = document.getElementById('enteredSearchCount');
+            if (!input) return;
+            const rows = Array.from(document.querySelectorAll('#enteredTable tbody tr'));
+            const total = rows.length;
+            function update(visible) {
+                countEl.textContent = visible < total ? `${visible} of ${total}` : `${total} components`;
+            }
+            update(total);
+            input.addEventListener('input', () => {
+                const q = input.value.trim().toLowerCase();
+                let n = 0;
+                rows.forEach(r => {
+                    const show = !q || r.textContent.toLowerCase().includes(q);
+                    r.style.display = show ? '' : 'none';
+                    if (show) n++;
+                });
+                update(n);
+            });
+        })();
+    </script>
+</body>
+</html>

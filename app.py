@@ -213,6 +213,45 @@ def migrate_db():
             db.execute("ALTER TABLE quotes ADD COLUMN po_comments TEXT CHECK(length(po_comments) <= 255)")
             db.commit()
             logger.info("Migration: added po_comments column to quotes")
+
+        # Migration: manufacturers, base_configs, entered_components
+        tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if 'manufacturers' not in tables:
+            db.execute("""CREATE TABLE manufacturers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)""")
+            db.execute("INSERT OR IGNORE INTO manufacturers (name) VALUES ('Intel'),('HPE'),('Dell'),('Broadcom')")
+            db.commit()
+            logger.info("Migration: created manufacturers table")
+        else:
+            # Ensure seed rows exist
+            for m in ('Intel', 'HPE', 'Dell', 'Broadcom'):
+                db.execute("INSERT OR IGNORE INTO manufacturers (name) VALUES (?)", (m,))
+            db.commit()
+        if 'base_configs' not in tables:
+            db.execute("""CREATE TABLE base_configs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                config_name TEXT NOT NULL,
+                project_id  INTEGER NOT NULL,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE)""")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_base_configs_project ON base_configs(project_id)")
+            db.commit()
+            logger.info("Migration: created base_configs table")
+        if 'entered_components' not in tables:
+            db.execute("""CREATE TABLE entered_components (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                config_id       INTEGER NOT NULL,
+                component_type  TEXT,
+                manufacturer_id INTEGER,
+                part_number     TEXT,
+                specs           TEXT,
+                model           TEXT,
+                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (config_id)       REFERENCES base_configs(id) ON DELETE CASCADE,
+                FOREIGN KEY (manufacturer_id) REFERENCES manufacturers(id))""")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_entered_comp_config ON entered_components(config_id)")
+            db.commit()
+            logger.info("Migration: created entered_components table")
     finally:
         db.close()
 
@@ -1007,6 +1046,130 @@ def api_quote_archive(quote_id):
         return jsonify({'error': str(e)}), 500
     finally:
         db.close()
+
+
+# =============================================================================
+# MANUFACTURERS API
+# =============================================================================
+
+@app.route('/api/manufacturers')
+def api_manufacturers():
+    db = get_db()
+    rows = db.execute("SELECT id, name FROM manufacturers ORDER BY name").fetchall()
+    db.close()
+    return jsonify([dict(r) for r in rows])
+
+
+# =============================================================================
+# LEARNED COMPONENTS API (read-only, for dropdown population)
+# =============================================================================
+
+@app.route('/api/components/learned')
+def api_learned_components():
+    db = get_db()
+    rows = db.execute("""
+        SELECT DISTINCT component_type, manufacturer, part_number, model, specs_json
+        FROM components
+        WHERE part_number IS NOT NULL AND part_number != ''
+        ORDER BY component_type, manufacturer, part_number
+    """).fetchall()
+    db.close()
+    return jsonify([dict(r) for r in rows])
+
+
+# =============================================================================
+# BASE CONFIGS API
+# =============================================================================
+
+@app.route('/api/projects/<int:project_id>/configs')
+def api_project_configs(project_id):
+    db = get_db()
+    configs = db.execute("""
+        SELECT id, config_name, created_at FROM base_configs
+        WHERE project_id = ? ORDER BY created_at DESC
+    """, (project_id,)).fetchall()
+    result = []
+    for c in configs:
+        components = db.execute("""
+            SELECT ec.id, ec.component_type, ec.part_number, ec.specs, ec.model,
+                   m.name AS manufacturer_name
+            FROM entered_components ec
+            LEFT JOIN manufacturers m ON ec.manufacturer_id = m.id
+            WHERE ec.config_id = ?
+            ORDER BY ec.id
+        """, (c['id'],)).fetchall()
+        result.append({**dict(c), 'components': [dict(comp) for comp in components]})
+    db.close()
+    return jsonify(result)
+
+
+@app.route('/api/projects/<int:project_id>/configs', methods=['POST'])
+def api_create_config(project_id):
+    data = request.get_json()
+    if not data or not data.get('config_name'):
+        return jsonify({'error': 'config_name required'}), 400
+    db = get_db()
+    try:
+        cursor = db.cursor()
+        cursor.execute(
+            "INSERT INTO base_configs (config_name, project_id) VALUES (?, ?)",
+            (data['config_name'].strip(), project_id)
+        )
+        config_id = cursor.lastrowid
+        for comp in data.get('components', []):
+            cursor.execute("""
+                INSERT INTO entered_components
+                    (config_id, component_type, manufacturer_id, part_number, specs, model)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                config_id,
+                comp.get('component_type'),
+                comp.get('manufacturer_id') or None,
+                comp.get('part_number'),
+                comp.get('specs'),
+                comp.get('model'),
+            ))
+        db.commit()
+        return jsonify({'success': True, 'config_id': config_id})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+
+@app.route('/api/configs/<int:config_id>', methods=['DELETE'])
+def api_delete_config(config_id):
+    db = get_db()
+    try:
+        db.execute("DELETE FROM base_configs WHERE id = ?", (config_id,))
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+
+# =============================================================================
+# ADMIN: ENTERED COMPONENTS
+# =============================================================================
+
+@app.route('/admin/entered-components')
+def admin_entered_components():
+    db = get_db()
+    rows = db.execute("""
+        SELECT ec.id, ec.component_type, ec.part_number, ec.specs, ec.model,
+               ec.created_at, m.name AS manufacturer_name,
+               bc.config_name, p.name AS project_name, t.name AS tenant_name
+        FROM entered_components ec
+        LEFT JOIN manufacturers m   ON ec.manufacturer_id = m.id
+        LEFT JOIN base_configs  bc  ON ec.config_id = bc.id
+        LEFT JOIN projects      p   ON bc.project_id = p.id
+        LEFT JOIN tenants       t   ON p.tenant_id = t.id
+        ORDER BY ec.created_at DESC
+    """).fetchall()
+    db.close()
+    return render_template('admin/entered_components.html', components=[dict(r) for r in rows])
 
 
 @app.route('/admin/components')
