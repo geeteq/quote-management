@@ -422,7 +422,17 @@ CREATE INDEX IF NOT EXISTS idx_catalog_part_number ON component_catalog(part_num
 CREATE INDEX IF NOT EXISTS idx_line_items_catalog ON line_items(catalog_component_id);
 
 -- =============================================================================
--- MANUFACTURERS
+-- VENDORS (companies that issue quotes: HPE, Dell, Cisco)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS vendors (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL UNIQUE,
+    code       TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================================================
+-- MANUFACTURERS (hardware component makers: Intel, HPE, Dell, Broadcom …)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS manufacturers (
     id   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -430,7 +440,7 @@ CREATE TABLE IF NOT EXISTS manufacturers (
 );
 
 -- =============================================================================
--- BASE CONFIGURATIONS
+-- BASE CONFIGURATIONS (named component sets per project)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS base_configs (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -441,20 +451,29 @@ CREATE TABLE IF NOT EXISTS base_configs (
 );
 
 -- =============================================================================
--- ENTERED COMPONENTS (manually entered, never modifies learned components)
+-- DEFINED COMPONENTS (manually defined, standalone, never auto-modified)
 -- =============================================================================
-CREATE TABLE IF NOT EXISTS entered_components (
+CREATE TABLE IF NOT EXISTS defined_components (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    config_id       INTEGER NOT NULL,
     component_type  TEXT,
-    manufacturer_id INTEGER,
+    manufacturer_id INTEGER REFERENCES manufacturers(id),
     part_number     TEXT,
-    specs           TEXT,
     model           TEXT,
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (config_id)       REFERENCES base_configs(id) ON DELETE CASCADE,
-    FOREIGN KEY (manufacturer_id) REFERENCES manufacturers(id)
+    specs           TEXT,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================================================
+-- BASE CONFIG COMPONENTS (M:N junction: configs ↔ defined_components)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS base_config_components (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    config_id    INTEGER NOT NULL REFERENCES base_configs(id)    ON DELETE CASCADE,
+    component_id INTEGER NOT NULL REFERENCES defined_components(id),
+    quantity     INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE INDEX IF NOT EXISTS idx_base_configs_project ON base_configs(project_id);
-CREATE INDEX IF NOT EXISTS idx_entered_comp_config  ON entered_components(config_id);
+CREATE INDEX IF NOT EXISTS idx_defined_comp_type    ON defined_components(component_type);
+CREATE INDEX IF NOT EXISTS idx_bcc_config           ON base_config_components(config_id);
+CREATE INDEX IF NOT EXISTS idx_bcc_component        ON base_config_components(component_id);

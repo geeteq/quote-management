@@ -144,115 +144,147 @@ def init_db():
 
 
 def migrate_db():
-    """Apply schema migrations for existing databases."""
+    """Apply incremental schema migrations. Each block is idempotent."""
     db = get_db()
     try:
-        # Migration: add 'archived' to projects.status CHECK constraint
-        row = db.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='projects'"
-        ).fetchone()
+        db.execute("PRAGMA foreign_keys = OFF")
+
+        tables = lambda: {r[0] for r in db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        cols   = lambda t: {r[1] for r in db.execute(f"PRAGMA table_info({t})")}
+
+        # ── M01: projects.status CHECK → include 'archived' ──────────────────
+        row = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='projects'").fetchone()
         if row and "'archived'" not in row['sql']:
-            existing = {r[1] for r in db.execute("PRAGMA table_info(projects)")}
-            cols = [c for c in ['id', 'name', 'tenant_id', 'description', 'comments',
-                                 'created_at', 'updated_at', 'status'] if c in existing]
-            col_str = ', '.join(cols)
-            db.execute("PRAGMA foreign_keys=OFF")
-            db.execute("""
-                CREATE TABLE projects_migration (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    tenant_id INTEGER NOT NULL,
-                    description TEXT,
-                    comments TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive', 'archived')),
-                    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-                    UNIQUE(tenant_id, name)
-                )
-            """)
-            db.execute(f"INSERT INTO projects_migration ({col_str}) SELECT {col_str} FROM projects")
+            existing = [c for c in ['id','name','tenant_id','description','comments',
+                                    'created_at','updated_at','status'] if c in cols('projects')]
+            cs = ', '.join(existing)
+            db.execute("""CREATE TABLE projects_migration (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+                tenant_id INTEGER NOT NULL, description TEXT, comments TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status TEXT DEFAULT 'active' CHECK(status IN ('active','inactive','archived')),
+                FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+                UNIQUE(tenant_id, name))""")
+            db.execute(f"INSERT INTO projects_migration ({cs}) SELECT {cs} FROM projects")
             db.execute("DROP TABLE projects")
             db.execute("ALTER TABLE projects_migration RENAME TO projects")
             db.execute("CREATE INDEX IF NOT EXISTS idx_projects_tenant ON projects(tenant_id)")
-            db.execute("PRAGMA foreign_keys=ON")
             db.commit()
-            logger.info("Migration: projects.status CHECK constraint updated to include 'archived'")
+            logger.info("M01: projects.status updated")
 
-        # Migration: add 'archived' to tenants.status CHECK constraint
-        row = db.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='tenants'"
-        ).fetchone()
+        # ── M02: tenants.status CHECK → include 'archived' ───────────────────
+        row = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='tenants'").fetchone()
         if row and "'archived'" not in row['sql']:
-            existing = {r[1] for r in db.execute("PRAGMA table_info(tenants)")}
-            cols = [c for c in ['id', 'name', 'contact_name', 'created_at', 'updated_at', 'status']
-                    if c in existing]
-            col_str = ', '.join(cols)
-            db.execute("PRAGMA foreign_keys=OFF")
-            db.execute("""
-                CREATE TABLE tenants_migration (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL UNIQUE,
-                    contact_name TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive', 'archived'))
-                )
-            """)
-            db.execute(f"INSERT INTO tenants_migration ({col_str}) SELECT {col_str} FROM tenants")
+            existing = [c for c in ['id','name','contact_name','created_at','updated_at','status']
+                        if c in cols('tenants')]
+            cs = ', '.join(existing)
+            db.execute("""CREATE TABLE tenants_migration (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE,
+                contact_name TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status TEXT DEFAULT 'active' CHECK(status IN ('active','inactive','archived')))""")
+            db.execute(f"INSERT INTO tenants_migration ({cs}) SELECT {cs} FROM tenants")
             db.execute("DROP TABLE tenants")
             db.execute("ALTER TABLE tenants_migration RENAME TO tenants")
             db.execute("CREATE INDEX IF NOT EXISTS idx_tenant_name ON tenants(name)")
-            db.execute("PRAGMA foreign_keys=ON")
             db.commit()
-            logger.info("Migration: tenants.status CHECK constraint updated to include 'archived'")
+            logger.info("M02: tenants.status updated")
 
-        # Migration: add po_comments column to quotes
-        existing_cols = {r[1] for r in db.execute("PRAGMA table_info(quotes)")}
-        if 'po_comments' not in existing_cols:
-            db.execute("ALTER TABLE quotes ADD COLUMN po_comments TEXT CHECK(length(po_comments) <= 255)")
+        # ── M03: quotes.po_comments ───────────────────────────────────────────
+        if 'po_comments' not in cols('quotes'):
+            db.execute("ALTER TABLE quotes ADD COLUMN po_comments TEXT CHECK(length(po_comments)<=255)")
             db.commit()
-            logger.info("Migration: added po_comments column to quotes")
+            logger.info("M03: quotes.po_comments added")
 
-        # Migration: manufacturers, base_configs, entered_components
-        tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        if 'manufacturers' not in tables:
+        # ── M04: manufacturers table ──────────────────────────────────────────
+        if 'manufacturers' not in tables():
             db.execute("""CREATE TABLE manufacturers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)""")
-            db.execute("INSERT OR IGNORE INTO manufacturers (name) VALUES ('Intel'),('HPE'),('Dell'),('Broadcom')")
             db.commit()
-            logger.info("Migration: created manufacturers table")
-        else:
-            # Ensure seed rows exist
-            for m in ('Intel', 'HPE', 'Dell', 'Broadcom'):
-                db.execute("INSERT OR IGNORE INTO manufacturers (name) VALUES (?)", (m,))
+            logger.info("M04: manufacturers table created")
+        for m in ('Intel','HPE','Dell','Broadcom','Cisco','Samsung',
+                  'Seagate','Western Digital','Micron','NVIDIA','AMD'):
+            db.execute("INSERT OR IGNORE INTO manufacturers (name) VALUES (?)", (m,))
+        db.commit()
+
+        # ── M05: vendors table ────────────────────────────────────────────────
+        if 'vendors' not in tables():
+            db.execute("""CREATE TABLE vendors (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE, code TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
             db.commit()
-        if 'base_configs' not in tables:
+            logger.info("M05: vendors table created")
+        for v in (('HPE','HPE'),('Dell','Dell'),('Cisco','Cisco')):
+            db.execute("INSERT OR IGNORE INTO vendors (name,code) VALUES (?,?)", v)
+        db.commit()
+
+        # ── M06: quotes.vendor_id FK ──────────────────────────────────────────
+        if 'vendor_id' not in cols('quotes'):
+            db.execute("ALTER TABLE quotes ADD COLUMN vendor_id INTEGER REFERENCES vendors(id)")
+            db.execute("UPDATE quotes SET vendor_id=(SELECT id FROM vendors WHERE code=quotes.vendor)")
+            db.commit()
+            logger.info("M06: quotes.vendor_id added and populated")
+
+        # ── M07: rename components → learned_components ───────────────────────
+        if 'components' in tables() and 'learned_components' not in tables():
+            db.execute("ALTER TABLE components RENAME TO learned_components")
+            db.commit()
+            logger.info("M07: components renamed to learned_components")
+
+        # ── M08: learned_components.manufacturer_id FK (soft) ────────────────
+        if 'learned_components' in tables() and 'manufacturer_id' not in cols('learned_components'):
+            db.execute("ALTER TABLE learned_components ADD COLUMN manufacturer_id INTEGER REFERENCES manufacturers(id)")
+            db.execute("""UPDATE learned_components SET manufacturer_id=
+                (SELECT id FROM manufacturers WHERE name=learned_components.manufacturer)""")
+            db.commit()
+            logger.info("M08: learned_components.manufacturer_id added")
+
+        # ── M09: base_configs table ───────────────────────────────────────────
+        if 'base_configs' not in tables():
             db.execute("""CREATE TABLE base_configs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                config_name TEXT NOT NULL,
-                project_id  INTEGER NOT NULL,
-                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                config_name TEXT NOT NULL, project_id INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE)""")
             db.execute("CREATE INDEX IF NOT EXISTS idx_base_configs_project ON base_configs(project_id)")
             db.commit()
-            logger.info("Migration: created base_configs table")
-        if 'entered_components' not in tables:
-            db.execute("""CREATE TABLE entered_components (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                config_id       INTEGER NOT NULL,
-                component_type  TEXT,
-                manufacturer_id INTEGER,
-                part_number     TEXT,
-                specs           TEXT,
-                model           TEXT,
-                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (config_id)       REFERENCES base_configs(id) ON DELETE CASCADE,
-                FOREIGN KEY (manufacturer_id) REFERENCES manufacturers(id))""")
-            db.execute("CREATE INDEX IF NOT EXISTS idx_entered_comp_config ON entered_components(config_id)")
+            logger.info("M09: base_configs table created")
+
+        # ── M10: defined_components table ─────────────────────────────────────
+        if 'defined_components' not in tables():
+            db.execute("""CREATE TABLE defined_components (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                component_type TEXT, manufacturer_id INTEGER REFERENCES manufacturers(id),
+                part_number TEXT, model TEXT, specs TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_defined_comp_type ON defined_components(component_type)")
             db.commit()
-            logger.info("Migration: created entered_components table")
+            logger.info("M10: defined_components table created")
+
+        # ── M11: base_config_components junction ──────────────────────────────
+        if 'base_config_components' not in tables():
+            db.execute("""CREATE TABLE base_config_components (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                config_id    INTEGER NOT NULL REFERENCES base_configs(id)    ON DELETE CASCADE,
+                component_id INTEGER NOT NULL REFERENCES defined_components(id),
+                quantity     INTEGER NOT NULL DEFAULT 1)""")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_bcc_config    ON base_config_components(config_id)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_bcc_component ON base_config_components(component_id)")
+            db.commit()
+            logger.info("M11: base_config_components junction table created")
+
+        # ── M12: drop legacy entered_components ───────────────────────────────
+        if 'entered_components' in tables():
+            db.execute("DROP TABLE entered_components")
+            db.commit()
+            logger.info("M12: entered_components dropped (superseded by defined_components)")
+
     finally:
+        db.execute("PRAGMA foreign_keys = ON")
         db.close()
 
 
@@ -1091,12 +1123,13 @@ def api_project_configs(project_id):
     result = []
     for c in configs:
         components = db.execute("""
-            SELECT ec.id, ec.component_type, ec.part_number, ec.specs, ec.model,
-                   m.name AS manufacturer_name
-            FROM entered_components ec
-            LEFT JOIN manufacturers m ON ec.manufacturer_id = m.id
-            WHERE ec.config_id = ?
-            ORDER BY ec.id
+            SELECT dc.id, dc.component_type, dc.part_number, dc.specs, dc.model,
+                   m.name AS manufacturer_name, bcc.quantity
+            FROM base_config_components bcc
+            JOIN defined_components dc ON bcc.component_id = dc.id
+            LEFT JOIN manufacturers m  ON dc.manufacturer_id = m.id
+            WHERE bcc.config_id = ?
+            ORDER BY dc.component_type, dc.part_number
         """, (c['id'],)).fetchall()
         result.append({**dict(c), 'components': [dict(comp) for comp in components]})
     db.close()
@@ -1117,18 +1150,22 @@ def api_create_config(project_id):
         )
         config_id = cursor.lastrowid
         for comp in data.get('components', []):
+            # Insert into defined_components, then link via junction
             cursor.execute("""
-                INSERT INTO entered_components
-                    (config_id, component_type, manufacturer_id, part_number, specs, model)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO defined_components (component_type, manufacturer_id, part_number, specs, model)
+                VALUES (?, ?, ?, ?, ?)
             """, (
-                config_id,
                 comp.get('component_type'),
                 comp.get('manufacturer_id') or None,
                 comp.get('part_number'),
                 comp.get('specs'),
                 comp.get('model'),
             ))
+            component_id = cursor.lastrowid
+            cursor.execute(
+                "INSERT INTO base_config_components (config_id, component_id, quantity) VALUES (?, ?, ?)",
+                (config_id, component_id, comp.get('quantity', 1))
+            )
         db.commit()
         return jsonify({'success': True, 'config_id': config_id})
     except Exception as e:
@@ -1158,15 +1195,16 @@ def api_delete_config(config_id):
 def admin_entered_components():
     db = get_db()
     rows = db.execute("""
-        SELECT ec.id, ec.component_type, ec.part_number, ec.specs, ec.model,
-               ec.created_at, m.name AS manufacturer_name,
+        SELECT dc.id, dc.component_type, dc.part_number, dc.specs, dc.model,
+               dc.created_at, m.name AS manufacturer_name,
                bc.config_name, p.name AS project_name, t.name AS tenant_name
-        FROM entered_components ec
-        LEFT JOIN manufacturers m   ON ec.manufacturer_id = m.id
-        LEFT JOIN base_configs  bc  ON ec.config_id = bc.id
-        LEFT JOIN projects      p   ON bc.project_id = p.id
-        LEFT JOIN tenants       t   ON p.tenant_id = t.id
-        ORDER BY ec.created_at DESC
+        FROM defined_components dc
+        LEFT JOIN manufacturers       m   ON dc.manufacturer_id = m.id
+        LEFT JOIN base_config_components bcc ON bcc.component_id = dc.id
+        LEFT JOIN base_configs         bc  ON bcc.config_id = bc.id
+        LEFT JOIN projects             p   ON bc.project_id = p.id
+        LEFT JOIN tenants              t   ON p.tenant_id = t.id
+        ORDER BY dc.created_at DESC
     """).fetchall()
     db.close()
     return render_template('admin/entered_components.html', components=[dict(r) for r in rows])
@@ -1181,7 +1219,7 @@ def admin_components():
         SELECT c.component_type, c.manufacturer, c.part_number, c.model,
                c.specs_json, COUNT(*) as seen,
                MIN(li.description) as description
-        FROM components c
+        FROM learned_components c
         LEFT JOIN line_items li ON c.line_item_id = li.id
         GROUP BY c.component_type, c.part_number
         ORDER BY c.component_type, c.part_number
