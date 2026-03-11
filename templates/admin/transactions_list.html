@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Transaction Ledger</title>
+</head>
+<body>
+
+<div class="transactions-content">
+
+    <!-- Summary bar -->
+    <div class="txn-summary-bar">
+        <div class="txn-summary-stat">
+            <span class="txn-summary-value">{{ summary.total_txns }}</span>
+            <span class="txn-summary-label">Total Transactions</span>
+        </div>
+        <div class="txn-summary-stat txn-summary-highlight">
+            <span class="txn-summary-value">{{ summary.total_tokens }}</span>
+            <span class="txn-summary-label">Tokens Consumed</span>
+        </div>
+        <div class="txn-summary-types">
+            {% for ts in type_summary %}
+            <div class="txn-type-chip">
+                <span class="txn-type-chip-label">{{ ts.label }}</span>
+                <span class="txn-type-chip-count">{{ ts.cnt }}</span>
+                <span class="txn-type-chip-tokens">{{ ts.total_tokens }} tk</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="txn-controls">
+        <input type="text" id="txnSearch" class="search-input" placeholder="Search transactions…">
+        <span id="txnCount" class="search-count"></span>
+    </div>
+
+    <!-- Ledger table -->
+    <div class="table-wrapper">
+        <table class="admin-table txn-table" id="txnTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Tokens</th>
+                    <th>Quote</th>
+                    <th>Config</th>
+                    <th>Context</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for txn in transactions %}
+                <tr class="txn-row txn-type-{{ txn.type_code }}">
+                    <td class="txn-id mono">{{ txn.id }}</td>
+                    <td class="txn-ts mono">{{ txn.created_at }}</td>
+                    <td>
+                        <span class="txn-user-pill">{{ txn.user_name }}</span>
+                    </td>
+                    <td>
+                        <span class="txn-action-pill txn-action-{{ txn.type_code }}">
+                            {{ txn.type_label }}
+                        </span>
+                    </td>
+                    <td class="txn-tokens">
+                        <span class="txn-token-badge">⬡ {{ txn.tokens_charged }}</span>
+                    </td>
+                    <td class="mono txn-ref">
+                        {% if txn.quote_id %}#{{ txn.quote_id }}{% else %}<span class="txn-nil">—</span>{% endif %}
+                    </td>
+                    <td class="mono txn-ref">
+                        {% if txn.config_id %}#{{ txn.config_id }}{% else %}<span class="txn-nil">—</span>{% endif %}
+                    </td>
+                    <td class="txn-meta">
+                        {% if txn.metadata %}
+                            {% for k, v in txn.metadata.items() %}
+                                <span class="txn-meta-kv"><span class="txn-meta-key">{{ k }}</span><span class="txn-meta-val">{{ v }}</span></span>
+                            {% endfor %}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="empty-state">No transactions recorded yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+(function () {
+    const input   = document.getElementById('txnSearch');
+    const countEl = document.getElementById('txnCount');
+    const rows    = Array.from(document.querySelectorAll('#txnTable tbody tr.txn-row'));
+    const total   = rows.length;
+
+    function updateCount(n) {
+        countEl.textContent = n < total ? `${n} of ${total}` : `${total} transactions`;
+    }
+    updateCount(total);
+
+    input.addEventListener('input', () => {
+        const q = input.value.trim().toLowerCase();
+        let n = 0;
+        rows.forEach(r => {
+            const show = !q || r.textContent.toLowerCase().includes(q);
+            r.style.display = show ? '' : 'none';
+            if (show) n++;
+        });
+        updateCount(n);
+    });
+})();
+</script>
+
+</body>
+</html>

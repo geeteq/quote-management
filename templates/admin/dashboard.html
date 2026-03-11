@@ -67,6 +67,21 @@
                         </li>
                     </ul>
                 </div>
+                <div class="admin-menu-section">
+                    <h3 class="admin-menu-header">Billing</h3>
+                    <ul class="admin-menu-list">
+                        <li>
+                            <a href="#" class="admin-menu-item" data-view="transactions">
+                                Transaction Ledger
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="admin-menu-item" data-view="transaction-types">
+                                Transaction Types
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </nav>
         </aside>
 
@@ -108,6 +123,10 @@
                     await loadEnteredComponentsView();
                 } else if (view === 'quotes') {
                     await loadQuotesView();
+                } else if (view === 'transactions') {
+                    await loadTransactionsView();
+                } else if (view === 'transaction-types') {
+                    await loadTransactionTypesView();
                 }
             });
         });
@@ -324,6 +343,77 @@
                     row.style.display = (type === 'all' || row.dataset.type === type) ? '' : 'none';
                 });
             });
+        }
+
+        async function loadTransactionsView() {
+            const contentArea = document.getElementById('contentArea');
+            contentArea.innerHTML = '<div class="loading">Loading transaction ledger…</div>';
+            try {
+                const response = await fetch(`${BASE}/admin/transactions`);
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const content = doc.querySelector('.transactions-content');
+                contentArea.innerHTML = content ? content.outerHTML : html;
+                // re-bind search after inject
+                const input = contentArea.querySelector('#txnSearch');
+                const countEl = contentArea.querySelector('#txnCount');
+                if (input) {
+                    const rows = Array.from(contentArea.querySelectorAll('#txnTable tbody tr.txn-row'));
+                    const total = rows.length;
+                    const updateCount = n => {
+                        countEl.textContent = n < total ? `${n} of ${total}` : `${total} transactions`;
+                    };
+                    updateCount(total);
+                    input.addEventListener('input', () => {
+                        const q = input.value.trim().toLowerCase();
+                        let n = 0;
+                        rows.forEach(r => {
+                            const show = !q || r.textContent.toLowerCase().includes(q);
+                            r.style.display = show ? '' : 'none';
+                            if (show) n++;
+                        });
+                        updateCount(n);
+                    });
+                }
+            } catch (error) {
+                contentArea.innerHTML = `<div class="error">Error loading transactions: ${error.message}</div>`;
+            }
+        }
+
+        async function loadTransactionTypesView() {
+            const contentArea = document.getElementById('contentArea');
+            contentArea.innerHTML = '<div class="loading">Loading transaction types…</div>';
+            try {
+                const response = await fetch(`${BASE}/api/admin/transaction-types`);
+                const types = await response.json();
+                let html = `
+                    <div class="txn-types-content">
+                        <h2 class="admin-section-title">Transaction Types &amp; Token Costs</h2>
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Label</th>
+                                    <th>Description</th>
+                                    <th>Token Cost</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                types.forEach(t => {
+                    html += `<tr>
+                        <td class="mono">${t.code}</td>
+                        <td><span class="txn-action-pill txn-action-${t.code}">${t.label}</span></td>
+                        <td class="txn-desc">${t.description || ''}</td>
+                        <td><span class="txn-token-badge">⬡ ${t.token_cost}</span></td>
+                    </tr>`;
+                });
+                html += `</tbody></table></div>`;
+                contentArea.innerHTML = html;
+            } catch (error) {
+                contentArea.innerHTML = `<div class="error">Error loading transaction types: ${error.message}</div>`;
+            }
         }
 
         async function loadProjectQuotes(projectId, projectName, tenantId, tenantName) {

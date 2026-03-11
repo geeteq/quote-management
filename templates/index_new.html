@@ -500,10 +500,13 @@
         function renderConfigs(configs) {
             if (!configs.length) return '<p class="empty-section-hint">No base configs yet. Click "+ Add Config" to create one.</p>';
             return `<div class="configs-grid">${configs.map(c => `
-                <div class="config-card">
+                <div class="config-card" id="config-card-${c.id}">
                     <div class="config-card-header">
                         <span class="config-name">${c.config_name}</span>
-                        <button class="btn-delete-config" onclick="deleteConfig(${c.id})" title="Delete config">&times;</button>
+                        <div class="config-card-actions">
+                            <button class="btn-match-quotes" onclick="matchConfig(${c.id})" title="Score all project quotes against this config">&#9878; Match Quotes</button>
+                            <button class="btn-delete-config" onclick="deleteConfig(${c.id})" title="Delete config">&times;</button>
+                        </div>
                     </div>
                     ${c.components.length ? `
                     <table class="config-components-table">
@@ -518,8 +521,66 @@
                             </tr>`).join('')}
                         </tbody>
                     </table>` : '<p class="empty-section-hint">No components.</p>'}
+                    <div class="match-results-area" id="match-${c.id}"></div>
                 </div>`).join('')}
             </div>`;
+        }
+
+        async function matchConfig(configId) {
+            const area = document.getElementById(`match-${configId}`);
+            if (!area) return;
+            area.innerHTML = '<div class="match-loading">Scoring quotes against config…</div>';
+            try {
+                const res  = await fetch(`${BASE}/api/configs/${configId}/match`);
+                const data = await res.json();
+                if (!res.ok) { area.innerHTML = `<div class="match-error">${data.error || 'Error'}</div>`; return; }
+                if (!data.quotes || !data.quotes.length) {
+                    area.innerHTML = '<div class="match-empty">No active quotes in this project to score.</div>';
+                    return;
+                }
+                let html = `<div class="match-results"><div class="match-results-header">Quote Coverage — ${data.config_name}</div>`;
+                data.quotes.forEach(q => {
+                    const pct = q.type_coverage_pct;
+                    const cls = pct >= 80 ? 'match-high' : pct >= 50 ? 'match-mid' : 'match-low';
+                    html += `
+                    <div class="match-quote-row ${cls}">
+                        <div class="match-quote-meta">
+                            <span class="match-quote-ref">${q.quote_ref}</span>
+                            <span class="match-vendor">${q.vendor || ''}</span>
+                            ${q.total_amount ? `<span class="match-amount">${q.currency || ''} ${Number(q.total_amount).toLocaleString()}</span>` : ''}
+                        </div>
+                        <div class="match-bar-wrap" title="Type coverage: ${pct}%">
+                            <div class="match-bar" style="width:${Math.round(pct)}%"></div>
+                        </div>
+                        <div class="match-pct-group">
+                            <span class="match-pct-label">By type</span>
+                            <span class="match-pct ${cls}-text">${pct}%</span>
+                            <span class="match-sep">·</span>
+                            <span class="match-pct-label">By part#</span>
+                            <span class="match-pct ${q.part_coverage_pct >= 80 ? 'match-high-text' : q.part_coverage_pct >= 50 ? 'match-mid-text' : 'match-low-text'}">${q.part_coverage_pct}%</span>
+                        </div>
+                        <details class="match-detail">
+                            <summary>${q.type_hits} / ${q.total_components} component types matched</summary>
+                            <table class="match-detail-table">
+                                <thead><tr><th>Type</th><th>Part #</th><th>Required Qty</th><th>Type ✓</th><th>Part # ✓</th></tr></thead>
+                                <tbody>${q.components.map(comp => `
+                                    <tr class="${comp.type_match ? '' : 'match-miss-row'}">
+                                        <td><span class="component-type-badge">${comp.component_type || '—'}</span></td>
+                                        <td class="mono">${comp.part_number || '—'}</td>
+                                        <td>${comp.quantity_required}</td>
+                                        <td class="match-bool ${comp.type_match ? 'match-yes' : 'match-no'}">${comp.type_match ? '✓' : '✗'}</td>
+                                        <td class="match-bool ${comp.part_match ? 'match-yes' : 'match-no'}">${comp.part_match ? '✓' : '✗'}</td>
+                                    </tr>`).join('')}
+                                </tbody>
+                            </table>
+                        </details>
+                    </div>`;
+                });
+                html += '</div>';
+                area.innerHTML = html;
+            } catch (err) {
+                area.innerHTML = `<div class="match-error">Error: ${err.message}</div>`;
+            }
         }
 
         function renderQuotesHtml(quotes) {

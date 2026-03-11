@@ -283,6 +283,69 @@ def migrate_db():
             db.commit()
             logger.info("M12: entered_components dropped (superseded by defined_components)")
 
+        # ── M13a: transaction_types table + seed ──────────────────────────────
+        if 'transaction_types' not in tables():
+            db.execute("""CREATE TABLE transaction_types (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                code       TEXT NOT NULL UNIQUE,
+                label      TEXT NOT NULL,
+                description TEXT,
+                token_cost INTEGER NOT NULL DEFAULT 1)""")
+            db.commit()
+            logger.info("M13a: transaction_types table created")
+
+        _TRANSACTION_TYPES = [
+            ('add_quote',            'Add Quote',
+             'Vendor quote PDF uploaded and parsed into line items',              10),
+            ('add_quote_item',       'Add Quote Item',
+             'Single line item parsed from a vendor quote (per-item cost)',        1),
+            ('add_config',           'Add Base Config',
+             'New desired base configuration created for a project',               5),
+            ('add_config_component', 'Add Config Component',
+             'Component specification added to a base configuration',              1),
+            ('archive_quote',        'Archive Quote',
+             'Quote hidden from the active view',                                  2),
+            ('delete_quote',         'Delete Quote',
+             'Quote and all line items permanently deleted',                       2),
+            ('compare_quotes',       'Compare Quotes',
+             'Side-by-side cost and spec comparison of two vendor quotes',         5),
+            ('config_match',         'Config Match',
+             'Vendor quote scored against a desired base configuration',          10),
+            ('add_tenant',           'Add Tenant',
+             'New tenant organisation created',                                    3),
+            ('add_project',          'Add Project',
+             'New project created under a tenant',                                 3),
+            ('archive_tenant',       'Archive Tenant',
+             'Tenant and all its projects archived',                               2),
+            ('delete_config',        'Delete Config',
+             'Base configuration and its component links deleted',                 2),
+        ]
+        for code, label, desc, cost in _TRANSACTION_TYPES:
+            db.execute(
+                "INSERT OR IGNORE INTO transaction_types (code,label,description,token_cost) VALUES (?,?,?,?)",
+                (code, label, desc, cost)
+            )
+        db.commit()
+
+        # ── M13b: transactions ledger table ───────────────────────────────────
+        if 'transactions' not in tables():
+            db.execute("""CREATE TABLE transactions (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                type_id        INTEGER NOT NULL REFERENCES transaction_types(id),
+                user_name      TEXT    NOT NULL DEFAULT 'admin',
+                quote_id       INTEGER REFERENCES quotes(id)       ON DELETE SET NULL,
+                config_id      INTEGER REFERENCES base_configs(id) ON DELETE SET NULL,
+                metadata_json  TEXT,
+                tokens_charged INTEGER NOT NULL DEFAULT 0,
+                created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_transactions_type    ON transactions(type_id)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_transactions_user    ON transactions(user_name)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_transactions_quote   ON transactions(quote_id)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_transactions_config  ON transactions(config_id)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at)")
+            db.commit()
+            logger.info("M13b: transactions ledger table created")
+
     finally:
         db.execute("PRAGMA foreign_keys = ON")
         db.close()
@@ -547,6 +610,38 @@ def get_normalized_specs(catalog_id, component_type):
     return specs
 
 
+def log_transaction(type_code, user_name='admin', quote_id=None, config_id=None,
+                    metadata=None, tokens_override=None):
+    """
+    Append one row to the transactions ledger.
+    Never raises — logging failures must not break the calling API.
+
+    tokens_override: when provided, overrides transaction_types.token_cost.
+    Useful for compound actions (e.g. add_quote + N × add_quote_item).
+    """
+    try:
+        db = get_db()
+        row = db.execute(
+            "SELECT id, token_cost FROM transaction_types WHERE code = ?", (type_code,)
+        ).fetchone()
+        if not row:
+            logger.warning(f"log_transaction: unknown type_code '{type_code}'")
+            db.close()
+            return
+        tokens = tokens_override if tokens_override is not None else row['token_cost']
+        db.execute(
+            """INSERT INTO transactions
+               (type_id, user_name, quote_id, config_id, metadata_json, tokens_charged)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (row['id'], user_name, quote_id, config_id,
+             json.dumps(metadata) if metadata else None, tokens)
+        )
+        db.commit()
+        db.close()
+    except Exception as e:
+        logger.warning(f"log_transaction failed for '{type_code}': {e}")
+
+
 def get_all_quotes():
     """Get all quotes for listing."""
     db = get_db()
@@ -665,6 +760,21 @@ def upload_quote():
 
         logger.info(f"Quote saved successfully with ID: {quote_db_id}")
 
+        item_count = len(result.get('line_items', []))
+        # Base cost 10 (add_quote) + 1 per line item (add_quote_item)
+        log_transaction(
+            'add_quote',
+            quote_id=quote_db_id,
+            metadata={
+                'filename': filename,
+                'vendor': result['quote'].get('vendor'),
+                'item_count': item_count,
+                'tenant_id': tenant_id,
+                'project_id': project_id,
+            },
+            tokens_override=10 + item_count
+        )
+
         return jsonify({
             'success': True,
             'quote_id': quote_db_id,
@@ -745,6 +855,13 @@ def compare_quotes():
 
     all_categories = [cat for cat in category_order
                       if cat in quote1_data['categories'] or cat in quote2_data['categories']]
+
+    log_transaction(
+        'compare_quotes',
+        metadata={'quote_ids': quote_ids,
+                  'quote_refs': [quote1_data['quote']['quote_id'],
+                                 quote2_data['quote']['quote_id']]}
+    )
 
     # Check if split view is requested
     use_split_view = request.args.get('view', 'split') == 'split'
@@ -853,6 +970,7 @@ def api_admin_tenant_archive(tenant_id):
         )
         db.commit()
         logger.info(f"Archived tenant {tenant_id} and all its projects")
+        log_transaction('archive_tenant', metadata={'tenant_id': tenant_id})
         return jsonify({'success': True})
     except Exception as e:
         db.rollback()
@@ -886,6 +1004,7 @@ def admin_tenant_create():
         db.commit()
         tenant_id = cursor.lastrowid
         logger.info(f"Created tenant: {tenant_name} (ID: {tenant_id})")
+        log_transaction('add_tenant', metadata={'tenant_id': tenant_id, 'name': tenant_name})
         return jsonify({'success': True, 'tenant_id': tenant_id})
     except sqlite3.IntegrityError:
         return jsonify({'error': 'Tenant with this name already exists'}), 400
@@ -1050,6 +1169,7 @@ def api_admin_quote_delete(quote_id):
             return jsonify({'error': 'Quote not found'}), 404
         db.execute("DELETE FROM quotes WHERE id = ?", (quote_id,))
         db.commit()
+        log_transaction('delete_quote', metadata={'deleted_quote_id': quote_id})
         # Remove PDF file if it exists
         if row['pdf_path'] and os.path.exists(row['pdf_path']):
             try:
@@ -1073,6 +1193,7 @@ def api_quote_archive(quote_id):
             return jsonify({'error': 'Quote not found'}), 404
         db.execute("UPDATE quotes SET status = 'archived' WHERE id = ?", (quote_id,))
         db.commit()
+        log_transaction('archive_quote', quote_id=quote_id)
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1101,7 +1222,7 @@ def api_learned_components():
     db = get_db()
     rows = db.execute("""
         SELECT DISTINCT component_type, manufacturer, part_number, model, specs_json
-        FROM components
+        FROM learned_components
         WHERE part_number IS NOT NULL AND part_number != ''
         ORDER BY component_type, manufacturer, part_number
     """).fetchall()
@@ -1167,6 +1288,18 @@ def api_create_config(project_id):
                 (config_id, component_id, comp.get('quantity', 1))
             )
         db.commit()
+        comp_count = len(data.get('components', []))
+        # 5 base (add_config) + 1 per component (add_config_component)
+        log_transaction(
+            'add_config',
+            config_id=config_id,
+            metadata={
+                'config_name': data['config_name'],
+                'project_id': project_id,
+                'component_count': comp_count,
+            },
+            tokens_override=5 + comp_count
+        )
         return jsonify({'success': True, 'config_id': config_id})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1180,11 +1313,247 @@ def api_delete_config(config_id):
     try:
         db.execute("DELETE FROM base_configs WHERE id = ?", (config_id,))
         db.commit()
+        log_transaction('delete_config', config_id=config_id)
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
         db.close()
+
+
+# =============================================================================
+# CONFIG MATCHING — score vendor quotes against a desired base configuration
+# =============================================================================
+
+@app.route('/api/configs/<int:config_id>/match')
+def api_config_match(config_id):
+    """
+    Score every quote in the same project against a base config.
+
+    Matching logic (two levels):
+    - Type coverage  : % of config component_types present as quote categories
+    - Part coverage  : % of config part_numbers found in quote product_numbers (exact)
+
+    Also logs a config_match transaction.
+    """
+    db = get_db()
+    try:
+        # Resolve config → project
+        config_row = db.execute(
+            "SELECT id, config_name, project_id FROM base_configs WHERE id = ?", (config_id,)
+        ).fetchone()
+        if not config_row:
+            return jsonify({'error': 'Config not found'}), 404
+
+        project_id = config_row['project_id']
+
+        # Config components
+        config_comps = db.execute("""
+            SELECT dc.component_type, dc.part_number, dc.model,
+                   m.name AS manufacturer_name, bcc.quantity
+            FROM base_config_components bcc
+            JOIN defined_components dc ON bcc.component_id = dc.id
+            LEFT JOIN manufacturers m  ON dc.manufacturer_id = m.id
+            WHERE bcc.config_id = ?
+            ORDER BY dc.component_type
+        """, (config_id,)).fetchall()
+        config_comps = [dict(c) for c in config_comps]
+
+        if not config_comps:
+            return jsonify({
+                'config_id': config_id,
+                'config_name': config_row['config_name'],
+                'quotes': [],
+                'message': 'Config has no components defined'
+            })
+
+        # All active quotes in this project
+        quotes = db.execute("""
+            SELECT id, quote_id, vendor, total_amount, currency,
+                   quote_date, expiry_date, description
+            FROM quotes
+            WHERE project_id = ? AND status != 'archived'
+            ORDER BY quote_date DESC
+        """, (project_id,)).fetchall()
+
+        results = []
+        for quote in quotes:
+            qid = quote['id']
+
+            # Quote line items
+            line_items = db.execute("""
+                SELECT category, product_number, description, quantity, unit_price, total_price
+                FROM line_items
+                WHERE quote_id = ?
+            """, (qid,)).fetchall()
+
+            quote_categories  = {li['category'] for li in line_items if li['category']}
+            quote_part_numbers = {
+                (li['product_number'] or '').strip().upper()
+                for li in line_items if li['product_number']
+            }
+
+            # Score each config component
+            component_results = []
+            type_hits = 0
+            part_hits = 0
+            for comp in config_comps:
+                ctype = comp['component_type'] or ''
+                cpn   = (comp['part_number'] or '').strip().upper()
+
+                type_match = ctype in quote_categories
+                part_match = bool(cpn) and cpn in quote_part_numbers
+
+                if type_match:
+                    type_hits += 1
+                if part_match:
+                    part_hits += 1
+
+                # Find matching line items for context
+                matched_items = [
+                    dict(li) for li in line_items
+                    if li['category'] == ctype or
+                       (cpn and (li['product_number'] or '').strip().upper() == cpn)
+                ]
+
+                component_results.append({
+                    'component_type':  ctype,
+                    'part_number':     comp['part_number'],
+                    'model':           comp['model'],
+                    'manufacturer':    comp['manufacturer_name'],
+                    'quantity_required': comp['quantity'],
+                    'type_match':      type_match,
+                    'part_match':      part_match,
+                    'matched_items':   matched_items,
+                })
+
+            total = len(config_comps)
+            type_coverage_pct = round(type_hits / total * 100, 1) if total else 0
+            part_coverage_pct = round(part_hits / total * 100, 1) if total else 0
+
+            results.append({
+                'quote_id':         qid,
+                'quote_ref':        quote['quote_id'],
+                'vendor':           quote['vendor'],
+                'total_amount':     quote['total_amount'],
+                'currency':         quote['currency'],
+                'quote_date':       quote['quote_date'],
+                'expiry_date':      quote['expiry_date'],
+                'description':      quote['description'],
+                'type_coverage_pct': type_coverage_pct,
+                'part_coverage_pct': part_coverage_pct,
+                'type_hits':        type_hits,
+                'part_hits':        part_hits,
+                'total_components': total,
+                'components':       component_results,
+            })
+
+        # Sort by type coverage descending
+        results.sort(key=lambda r: r['type_coverage_pct'], reverse=True)
+
+        log_transaction(
+            'config_match',
+            config_id=config_id,
+            metadata={
+                'config_name': config_row['config_name'],
+                'project_id': project_id,
+                'quotes_evaluated': len(results),
+            }
+        )
+
+        return jsonify({
+            'config_id':   config_id,
+            'config_name': config_row['config_name'],
+            'project_id':  project_id,
+            'quotes':      results,
+        })
+    finally:
+        db.close()
+
+
+# =============================================================================
+# ADMIN: TRANSACTIONS LEDGER
+# =============================================================================
+
+@app.route('/admin/transactions')
+def admin_transactions():
+    """Transaction ledger view."""
+    db = get_db()
+    rows = db.execute("""
+        SELECT t.id, t.user_name, t.tokens_charged, t.created_at,
+               t.quote_id, t.config_id, t.metadata_json,
+               tt.code AS type_code, tt.label AS type_label, tt.token_cost
+        FROM transactions t
+        JOIN transaction_types tt ON tt.id = t.type_id
+        ORDER BY t.created_at DESC
+        LIMIT 500
+    """).fetchall()
+
+    summary = db.execute("""
+        SELECT COUNT(*) AS total_txns, COALESCE(SUM(tokens_charged),0) AS total_tokens
+        FROM transactions
+    """).fetchone()
+
+    type_summary = db.execute("""
+        SELECT tt.label, tt.code, COUNT(*) AS cnt,
+               COALESCE(SUM(t.tokens_charged),0) AS total_tokens
+        FROM transactions t
+        JOIN transaction_types tt ON tt.id = t.type_id
+        GROUP BY tt.id
+        ORDER BY total_tokens DESC
+    """).fetchall()
+
+    db.close()
+
+    transactions = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d['metadata'] = json.loads(r['metadata_json']) if r['metadata_json'] else {}
+        except Exception:
+            d['metadata'] = {}
+        transactions.append(d)
+
+    return render_template(
+        'admin/transactions_list.html',
+        transactions=transactions,
+        summary=dict(summary),
+        type_summary=[dict(ts) for ts in type_summary],
+    )
+
+
+@app.route('/api/admin/transaction-types')
+def api_transaction_types():
+    """List all transaction types with their token costs."""
+    db = get_db()
+    rows = db.execute(
+        "SELECT id, code, label, description, token_cost FROM transaction_types ORDER BY token_cost DESC"
+    ).fetchall()
+    db.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/admin/transactions/summary')
+def api_transactions_summary():
+    """Aggregated transaction stats."""
+    db = get_db()
+    overall = db.execute("""
+        SELECT COUNT(*) AS total_txns, COALESCE(SUM(tokens_charged),0) AS total_tokens
+        FROM transactions
+    """).fetchone()
+    by_type = db.execute("""
+        SELECT tt.code, tt.label, COUNT(*) AS cnt,
+               COALESCE(SUM(t.tokens_charged),0) AS total_tokens
+        FROM transactions t
+        JOIN transaction_types tt ON tt.id = t.type_id
+        GROUP BY tt.id
+        ORDER BY total_tokens DESC
+    """).fetchall()
+    db.close()
+    return jsonify({
+        'overall': dict(overall),
+        'by_type': [dict(r) for r in by_type],
+    })
 
 
 # =============================================================================
@@ -1342,6 +1711,9 @@ def admin_project_create():
         db.commit()
         project_id = cursor.lastrowid
         logger.info(f"Created project: {project_name} for tenant {tenant_id} (ID: {project_id})")
+        log_transaction('add_project', metadata={
+            'project_id': project_id, 'name': project_name, 'tenant_id': int(tenant_id)
+        })
         return jsonify({'success': True, 'project_id': project_id})
     except sqlite3.IntegrityError:
         return jsonify({'error': 'Project with this name already exists for this tenant'}), 400

@@ -3199,3 +3199,264 @@ button:hover {
     text-overflow: ellipsis;
 }
 .mono { font-family: monospace; font-size: 0.82rem; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CONFIG CARD — match button & actions row
+   ══════════════════════════════════════════════════════════════════════════ */
+.config-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-match-quotes {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: #f0fdf4;
+    color: #15803d;
+    border: 1px solid #86efac;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+}
+.btn-match-quotes:hover { background: #dcfce7; border-color: #4ade80; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CONFIG MATCHING — results area below component table
+   ══════════════════════════════════════════════════════════════════════════ */
+.match-results-area { padding: 0 12px 12px; }
+.match-loading, .match-empty { padding: 8px 0; font-size: 0.82rem; color: #64748b; font-style: italic; }
+.match-error   { padding: 8px 0; font-size: 0.82rem; color: #ef4444; }
+
+.match-results { display: flex; flex-direction: column; gap: 6px; }
+.match-results-header {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #94a3b8;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 2px;
+}
+
+.match-quote-row {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.match-high { border-left: 3px solid #22c55e; background: #f0fdf4; }
+.match-mid  { border-left: 3px solid #f59e0b; background: #fffbeb; }
+.match-low  { border-left: 3px solid #ef4444; background: #fef2f2; }
+
+.match-quote-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+}
+.match-quote-ref { font-weight: 700; font-family: monospace; color: #1e293b; }
+.match-vendor    { color: #64748b; font-size: 0.78rem; }
+.match-amount    { margin-left: auto; font-weight: 600; color: #334155; }
+
+.match-bar-wrap {
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 99px;
+    overflow: hidden;
+}
+.match-bar {
+    height: 100%;
+    border-radius: 99px;
+    background: linear-gradient(90deg, #22c55e, #86efac);
+    transition: width 0.4s ease;
+}
+.match-high .match-bar { background: linear-gradient(90deg, #16a34a, #4ade80); }
+.match-mid  .match-bar { background: linear-gradient(90deg, #d97706, #fbbf24); }
+.match-low  .match-bar { background: linear-gradient(90deg, #dc2626, #f87171); }
+
+.match-pct-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.78rem;
+}
+.match-pct-label { color: #94a3b8; }
+.match-sep { color: #cbd5e1; }
+.match-pct { font-weight: 700; font-family: monospace; }
+.match-high-text { color: #15803d; }
+.match-mid-text  { color: #b45309; }
+.match-low-text  { color: #b91c1c; }
+
+.match-detail { margin-top: 2px; font-size: 0.78rem; }
+.match-detail summary {
+    cursor: pointer;
+    color: #475569;
+    user-select: none;
+    padding: 2px 0;
+}
+.match-detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 6px;
+    font-size: 0.76rem;
+}
+.match-detail-table th, .match-detail-table td {
+    padding: 3px 6px;
+    border-bottom: 1px solid #f1f5f9;
+    text-align: left;
+}
+.match-detail-table th { color: #94a3b8; font-weight: 600; }
+.match-miss-row td { opacity: 0.6; }
+.match-bool { text-align: center !important; font-size: 0.85rem; }
+.match-yes  { color: #16a34a; }
+.match-no   { color: #dc2626; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TRANSACTION LEDGER — admin panel styles
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Summary bar */
+.txn-summary-bar {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    padding: 16px 20px;
+    background: #0f172a;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+.txn-summary-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 100px;
+}
+.txn-summary-value {
+    font-size: 1.6rem;
+    font-weight: 800;
+    font-family: monospace;
+    color: #f1f5f9;
+    line-height: 1;
+}
+.txn-summary-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #64748b;
+}
+.txn-summary-highlight .txn-summary-value { color: #a5f3fc; }
+
+.txn-summary-types {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex: 1;
+    align-items: center;
+}
+.txn-type-chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    font-size: 0.7rem;
+}
+.txn-type-chip-label { color: #94a3b8; }
+.txn-type-chip-count { color: #f1f5f9; font-weight: 700; font-family: monospace; }
+.txn-type-chip-tokens { color: #a5f3fc; font-family: monospace; font-size: 0.68rem; }
+
+/* Controls */
+.txn-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+/* Ledger table */
+.txn-table .txn-id  { color: #94a3b8; font-size: 0.75rem; }
+.txn-table .txn-ts  { white-space: nowrap; font-size: 0.75rem; color: #475569; }
+.txn-table .txn-ref { color: #475569; font-size: 0.78rem; }
+.txn-table .txn-nil { color: #cbd5e1; }
+.txn-table .txn-desc { font-size: 0.78rem; color: #64748b; max-width: 260px; }
+
+.txn-user-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #1e293b;
+    color: #94a3b8;
+    border-radius: 99px;
+    font-size: 0.72rem;
+    font-family: monospace;
+}
+
+/* Token badge */
+.txn-token-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 7px;
+    background: #ecfeff;
+    color: #0e7490;
+    border: 1px solid #a5f3fc;
+    border-radius: 6px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    font-family: monospace;
+    white-space: nowrap;
+}
+
+/* Action pills — colour by type */
+.txn-action-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+.txn-action-add_quote            { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
+.txn-action-add_quote_item       { background: #eff6ff; color: #3b82f6; border-color: #dbeafe; }
+.txn-action-add_config           { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.txn-action-add_config_component { background: #f0fdf4; color: #16a34a; border-color: #bbf7d0; }
+.txn-action-archive_quote        { background: #fefce8; color: #a16207; border-color: #fde68a; }
+.txn-action-delete_quote         { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.txn-action-compare_quotes       { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+.txn-action-config_match         { background: #fdf4ff; color: #7e22ce; border-color: #e9d5ff; }
+.txn-action-add_tenant           { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.txn-action-add_project          { background: #fff7ed; color: #ea580c; border-color: #fed7aa; }
+.txn-action-archive_tenant       { background: #fefce8; color: #854d0e; border-color: #fde68a; }
+.txn-action-delete_config        { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+
+/* Metadata key-value inline */
+.txn-meta { font-size: 0.72rem; display: flex; flex-wrap: wrap; gap: 4px; }
+.txn-meta-kv {
+    display: inline-flex;
+    gap: 2px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+    font-family: monospace;
+}
+.txn-meta-key { padding: 1px 4px; background: #e2e8f0; color: #475569; }
+.txn-meta-val { padding: 1px 5px; color: #334155; }
+
+/* transaction types view */
+.admin-section-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 16px;
+}
+.txn-types-content { padding: 4px 0; }

@@ -477,3 +477,34 @@ CREATE INDEX IF NOT EXISTS idx_base_configs_project ON base_configs(project_id);
 CREATE INDEX IF NOT EXISTS idx_defined_comp_type    ON defined_components(component_type);
 CREATE INDEX IF NOT EXISTS idx_bcc_config           ON base_config_components(config_id);
 CREATE INDEX IF NOT EXISTS idx_bcc_component        ON base_config_components(component_id);
+
+-- =============================================================================
+-- TRANSACTION TYPES — catalogue of billable API actions with dummy token costs
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS transaction_types (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    code        TEXT NOT NULL UNIQUE,
+    label       TEXT NOT NULL,
+    description TEXT,
+    token_cost  INTEGER NOT NULL DEFAULT 1
+);
+
+-- =============================================================================
+-- TRANSACTIONS — immutable audit ledger of every user action
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS transactions (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    type_id        INTEGER NOT NULL REFERENCES transaction_types(id),
+    user_name      TEXT    NOT NULL DEFAULT 'admin',
+    quote_id       INTEGER REFERENCES quotes(id)       ON DELETE SET NULL,
+    config_id      INTEGER REFERENCES base_configs(id) ON DELETE SET NULL,
+    metadata_json  TEXT,                -- arbitrary JSON context per action
+    tokens_charged INTEGER NOT NULL DEFAULT 0,
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_type    ON transactions(type_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_user    ON transactions(user_name);
+CREATE INDEX IF NOT EXISTS idx_transactions_quote   ON transactions(quote_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_config  ON transactions(config_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at);
