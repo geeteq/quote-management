@@ -3195,6 +3195,52 @@ button:hover {
     gap: 14px;
     margin-bottom: 4px;
 }
+.basic-comp-inputs {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.basic-comp-inputs input[type="text"],
+.basic-comp-inputs select { flex: 1; min-width: 0; }
+
+/* Quantity input — shared across basic + vendor rows */
+.comp-qty {
+    width: 52px;
+    flex-shrink: 0;
+    text-align: center;
+    font-size: 0.83rem;
+    padding: 6px 4px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+}
+.qty-col { text-align: center; width: 44px; }
+
+/* ── Basic config NIC section ────────────────────────────────────────────── */
+.basic-nic-section {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin-top: 14px;
+    overflow: hidden;
+}
+.basic-nic-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f1f5f9;
+    padding: 8px 14px;
+    border-bottom: 1px solid #e2e8f0;
+}
+.basic-nic-title { font-size: 0.82rem; font-weight: 700; color: #475569; letter-spacing: 0.04em; text-transform: uppercase; }
+.basic-nic-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #f1f5f9;
+}
+.basic-nic-row:last-child { border-bottom: none; }
+.nic-role-select  { width: 150px; flex-shrink: 0; font-size: 0.83rem; font-weight: 600; color: #374151; }
+.nic-part-select  { flex: 1; min-width: 0; font-size: 0.83rem; }
 
 /* ── Vendor config builder ───────────────────────────────────────────────── */
 .vendor-loading { padding: 18px; color: #94a3b8; font-style: italic; text-align: center; }

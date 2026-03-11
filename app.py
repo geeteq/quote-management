@@ -525,23 +525,17 @@ def get_quote_by_id(quote_db_id):
     if not quote:
         return None
 
-    # Get line items with normalized catalog specs
+    # Get line items with catalog info
     line_items = db.execute('''
         SELECT
             li.*,
-            c.component_type,
-            c.manufacturer,
-            c.specs_json,
-            GROUP_CONCAT(cl.url) as urls,
             cc.id as catalog_id,
             cc.model as catalog_model,
-            cc.manufacturer as catalog_manufacturer
+            cc.manufacturer as catalog_manufacturer,
+            cc.component_type as catalog_component_type
         FROM line_items li
-        LEFT JOIN components c ON c.line_item_id = li.id
-        LEFT JOIN component_links cl ON cl.component_id = c.id
         LEFT JOIN component_catalog cc ON cc.id = li.catalog_component_id
         WHERE li.quote_id = ?
-        GROUP BY li.id
         ORDER BY li.line_no
     ''', (quote_db_id,)).fetchall()
 
@@ -556,24 +550,17 @@ def get_quote_by_id(quote_db_id):
 
         item_dict = dict(item)
 
-        # Try to get normalized specs if available
+        # Try to get normalized specs from catalog if available
         if item_dict.get('catalog_id'):
-            normalized_specs = get_normalized_specs(item_dict['catalog_id'], category)
-            if normalized_specs:
-                item_dict['specs'] = normalized_specs
-            elif item_dict['specs_json']:
-                item_dict['specs'] = json.loads(item_dict['specs_json'])
-            else:
-                item_dict['specs'] = {}
-        elif item_dict['specs_json']:
-            item_dict['specs'] = json.loads(item_dict['specs_json'])
+            normalized_specs = get_normalized_specs(
+                item_dict['catalog_id'],
+                item_dict.get('catalog_component_type') or category
+            )
+            item_dict['specs'] = normalized_specs or {}
         else:
             item_dict['specs'] = {}
 
-        if item_dict['urls']:
-            item_dict['urls'] = item_dict['urls'].split(',')
-        else:
-            item_dict['urls'] = []
+        item_dict['urls'] = []
 
         categories[category].append(item_dict)
 
@@ -2022,6 +2009,21 @@ def admin_servers():
     """).fetchall()
     db.close()
     return render_template('admin/servers_list.html', servers=[dict(s) for s in servers])
+
+
+@app.route('/api/catalog/components')
+def api_catalog_components():
+    """Return component_catalog entries filtered by component_type query param."""
+    ctype = request.args.get('type', '')
+    db = get_db()
+    rows = db.execute("""
+        SELECT part_number, description, manufacturer
+        FROM component_catalog
+        WHERE component_type = ?
+        ORDER BY manufacturer, part_number
+    """, (ctype,)).fetchall()
+    db.close()
+    return jsonify([dict(r) for r in rows])
 
 
 @app.route('/api/admin/servers')

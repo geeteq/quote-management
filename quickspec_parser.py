@@ -109,14 +109,27 @@ FORM_FACTOR_BY_MODEL = {
 # ---------------------------------------------------------------------------
 SECTION_MAP: List[Tuple[str, str, str, bool]] = [
     # keyword_fragment               component_type         role                  std
+    # Most-specific HPE ordering-section headers first
     ('storage controller',          'Storage Controller',  'Storage Controller', True),
     ('smart array',                 'Storage Controller',  'RAID Controller',    True),
     ('raid controller',             'Storage Controller',  'RAID Controller',    True),
     ('hba',                         'Storage Controller',  'HBA',                True),
+    # HPE ordering-section reset headers (broad categories in "Core/Additional Options")
+    ('cooling option',              'Additional Hardware', 'Cooling',            False),
+    ('liquid cooling',              'Additional Hardware', 'Liquid Cooling',     False),
+    ('heat sink',                   'Additional Hardware', 'Heatsink',           False),
+    ('heatsink',                    'Additional Hardware', 'Heatsink',           False),
+    ('riser',                       'Additional Hardware', 'Riser',              False),
+    ('backplane',                   'Additional Hardware', 'Backplane',          False),
+    ('rail kit',                    'Additional Hardware', 'Rail Kit',           False),
+    ('cable',                       'Additional Hardware', 'Cable',              False),
+    ('fan',                         'Additional Hardware', 'Fan',                True),
+    # Drive types
     ('solid state',                 'Disk',                'SSD',                True),
     ('hard drive',                  'Disk',                'HDD',                True),
     ('optical drive',               'Additional Hardware', 'Optical Drive',      False),
     ('nvme',                        'Disk',                'NVMe SSD',           True),
+    # Core types
     ('processor',                   'CPU',                 'Processor',          True),
     ('memory',                      'Memory',              'System Memory',      True),
     ('network controller',          'Network Card',        'Network Controller', True),
@@ -131,9 +144,6 @@ SECTION_MAP: List[Tuple[str, str, str, bool]] = [
     ('storage',                     'Disk',                'Storage',            True),
     ('management controller',       'Additional Hardware', 'Management',         True),
     ('idrac',                       'Additional Hardware', 'iDRAC',              True),
-    ('rail kit',                    'Additional Hardware', 'Rail Kit',           False),
-    ('cable',                       'Additional Hardware', 'Cable',              False),
-    ('fan',                         'Additional Hardware', 'Fan',                True),
 ]
 
 
@@ -303,6 +313,37 @@ class QuickSpecParser:
     # HPE line-by-line extraction (part-number driven)
     # ------------------------------------------------------------------
 
+    # HPE QuickSpec notes always start with one of these characters
+    _NOTE_LINE_RE = re.compile(r'^[−\-–•·*▪►]')
+    # Remove parenthesised content to detect if PN only appears as a cross-reference
+    _STRIP_PARENS_RE = re.compile(r'\([^)]*\)')
+
+    # Description-based overrides: (pattern, forced_component_type)
+    # Applied after section-based classification; most specific rules first.
+    _DESC_RECLASSIFY = [
+        (re.compile(r'(?i)\b(xeon|processor)\b'),                               'CPU'),
+        (re.compile(r'(?i)\bethernet\b.{0,60}(adapter|nic|card|ocp\d?)'),       'Network Card'),
+        (re.compile(r'(?i)(adapter|nic|card).{0,60}(ethernet|10g|25g|100g)'),   'Network Card'),
+        (re.compile(r'(?i)\bheat\s*sink\b'),                                    'Additional Hardware'),
+        (re.compile(r'(?i)\bfan\s+(kit|tray|module)\b'),                        'Additional Hardware'),
+        (re.compile(r'(?i)\briser\s+(cage|card|kit|module)\b'),                 'Additional Hardware'),
+        (re.compile(r'(?i)\bcable\s+kit\b'),                                    'Additional Hardware'),
+        (re.compile(r'(?i)\benablement\s+kit\b'),                               'Additional Hardware'),
+        (re.compile(r'(?i)\btrusted\s+supply\b'),                               'Additional Hardware'),
+        (re.compile(r'(?i)\bsystem\s+insight\b'),                               'Additional Hardware'),
+        (re.compile(r'(?i)\bmedia\s+bay\b'),                                    'Additional Hardware'),
+        (re.compile(r'(?i)\bserial\s+port\s+cable\b'),                          'Additional Hardware'),
+        (re.compile(r'(?i)\bgpu\s+power\s+cable\b'),                            'Additional Hardware'),
+        (re.compile(r'(?i)\b(hdd|hard\s*drive|sff|lff)\s+(spade\s+)?blank\b'), 'Additional Hardware'),
+        (re.compile(r'(?i)\bdrive\s+cage\s+kit\b'),                             'Additional Hardware'),
+        (re.compile(r'(?i)\bblank\s+kit\b'),                                    'Additional Hardware'),
+    ]
+
+    # Descriptions that indicate a garbage/placeholder row — skip entirely
+    _DESC_GARBAGE_RE = re.compile(
+        r'(?i)^(sku\s+number|system\s+config(uration)?|tbd|n/?a|see\s+note|contact\s+hpe)$'
+    )
+
     def _extract_components_hpe_lines(self) -> List[Dict]:
         if self._part_re is None:
             self._part_re = HPE_PART_NUMBER_RE
@@ -318,18 +359,52 @@ class QuickSpecParser:
             stripped = line.strip()
             if not stripped:
                 continue
+
+            # ── Section header detection ──────────────────────────────────
             section = self._match_section_header(stripped)
             if section:
                 current_type, current_role, current_std = section
                 continue
-            for pn in self._part_re.findall(stripped):
+
+            # ── Skip note lines (HPE convention: notes start with − / - / •)
+            if self._NOTE_LINE_RE.match(stripped):
+                continue
+
+            # ── Skip continuation prose lines (start with lowercase = mid-sentence)
+            if stripped[0].islower():
+                continue
+
+            # ── Skip lines where every PN is inside parentheses (cross-refs)
+            line_no_parens = self._STRIP_PARENS_RE.sub('', stripped)
+            pns = self._part_re.findall(stripped)
+            if not pns:
+                continue
+            primary_pns = self._part_re.findall(line_no_parens)
+            if not primary_pns:
+                # All PNs were inside ()  — cross-reference only, skip
+                continue
+
+            # ── Skip lines with 3+ PNs (comparison tables / reference lists)
+            if len(primary_pns) >= 3:
+                continue
+
+            for pn in primary_pns:
                 if pn in seen_parts:
                     continue
                 seen_parts.add(pn)
                 desc        = self._extract_description(stripped, pn, lines, i)
+                # Skip garbage/placeholder rows
+                if desc and self._DESC_GARBAGE_RE.match(desc.strip()):
+                    continue
                 is_optional = self._is_optional_line(stripped)
+                # Override component_type based on description keywords
+                ctype = current_type
+                for pattern, forced_type in self._DESC_RECLASSIFY:
+                    if pattern.search(desc or stripped):
+                        ctype = forced_type
+                        break
                 components.append({
-                    'component_type': current_type,
+                    'component_type': ctype,
                     'part_number':    pn,
                     'description':    desc,
                     'component_role': current_role,
@@ -489,9 +564,26 @@ class QuickSpecParser:
             and not re.match(r'^(for|see|with|and|or|up to|note|visit|contact|availability)\b', it, re.I)
         ]
 
-    @staticmethod
-    def _match_section_header(line: str) -> Optional[Tuple[str, str, bool]]:
+    # Section header must be a standalone label, not a note or sentence fragment
+    _SECTION_NOTE_RE  = re.compile(r'^[−\-–•·*▪►]')
+    _SECTION_NOISE_RE = re.compile(
+        r'^(notes?:|if |when |this |see |for |the |and |or |with |up to |'
+        r'available |contact |more info|visit |recommend|figure |page \d)',
+        re.IGNORECASE
+    )
+
+    @classmethod
+    def _match_section_header(cls, line: str) -> Optional[Tuple[str, str, bool]]:
+        # Must be short, contain no part number, and not be a note/sentence fragment
         if len(line) > 80:
+            return None
+        if HPE_PART_NUMBER_RE.search(line):
+            return None
+        if DELL_PART_NUMBER_RE.search(line):
+            return None
+        if cls._SECTION_NOTE_RE.match(line):
+            return None
+        if cls._SECTION_NOISE_RE.match(line):
             return None
         lower = line.lower()
         for keyword, ctype, role, std in SECTION_MAP:

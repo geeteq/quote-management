@@ -183,21 +183,47 @@
                     <input type="text" id="basicConfigName" placeholder="e.g., Standard 2-Socket Server">
                 </div>
                 <div class="basic-config-grid">
-                    <div class="form-group">
+                    <div class="form-group basic-comp-row">
                         <label>CPU</label>
-                        <input type="text" id="basicCPU" placeholder="e.g., Intel Xeon Gold 6338 32-Core">
+                        <div class="basic-comp-inputs">
+                            <input type="text" id="basicCPU" placeholder="e.g., Intel Xeon Gold 6338 32-Core">
+                            <input type="number" id="basicCPUQty" class="comp-qty" value="2" min="1" max="255" title="Quantity">
+                        </div>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group basic-comp-row">
                         <label>Memory</label>
-                        <input type="text" id="basicMemory" placeholder="e.g., 512GB DDR5 4800MHz">
+                        <div class="basic-comp-inputs">
+                            <input type="text" id="basicMemory" placeholder="e.g., 512GB DDR5 4800MHz">
+                            <input type="number" id="basicMemoryQty" class="comp-qty" value="1" min="1" max="255" title="Quantity">
+                        </div>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group basic-comp-row">
                         <label>Disk</label>
-                        <input type="text" id="basicDisk" placeholder="e.g., 4x 3.84TB NVMe SSD">
+                        <div class="basic-comp-inputs">
+                            <input type="text" id="basicDisk" placeholder="e.g., 4x 3.84TB NVMe SSD">
+                            <input type="number" id="basicDiskQty" class="comp-qty" value="1" min="1" max="255" title="Quantity">
+                        </div>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group basic-comp-row">
                         <label>Power Supply</label>
-                        <input type="text" id="basicPSU" placeholder="e.g., 800W Platinum Redundant">
+                        <div class="basic-comp-inputs">
+                            <select id="basicPSU">
+                                <option value="">— Select —</option>
+                                <option value="AC">AC</option>
+                                <option value="DC">DC</option>
+                            </select>
+                            <input type="number" id="basicPSUQty" class="comp-qty" value="2" min="1" max="255" title="Quantity">
+                        </div>
+                    </div>
+                </div>
+                <!-- NIC section -->
+                <div class="basic-nic-section">
+                    <div class="basic-nic-header">
+                        <span class="basic-nic-title">Network Interfaces</span>
+                        <button class="btn-ghost btn-sm" onclick="addBasicNicRow()">+ Add NIC</button>
+                    </div>
+                    <div id="basicNicRows">
+                        <!-- seeded by setConfigMode('basic') -->
                     </div>
                 </div>
                 <div class="form-actions">
@@ -304,12 +330,17 @@
 
         let serverCatalog = [];       // [{id, model_name, ...}]
         let serverComponents = {};    // {component_type: [{part_number, description, ...}]}
+        let nicCatalog = [];          // [{part_number, description, manufacturer}]
 
         async function showAddConfigModal(projectId) {
             configModalProjectId = projectId;
             setConfigMode(null);
             document.getElementById('addConfigModal').style.display = 'flex';
-            // Pre-fetch server catalog in background
+            // Pre-fetch NIC catalog and server catalog in background
+            if (!nicCatalog.length) {
+                const r = await fetch(`${BASE}/api/catalog/components?type=Network+Card`);
+                nicCatalog = await r.json();
+            }
             if (!serverCatalog.length) {
                 const r = await fetch(`${BASE}/api/admin/servers`);
                 serverCatalog = await r.json();
@@ -337,6 +368,10 @@
                 document.getElementById('basicMemory').value     = '';
                 document.getElementById('basicDisk').value       = '';
                 document.getElementById('basicPSU').value        = '';
+                const nicRows = document.getElementById('basicNicRows');
+                nicRows.innerHTML = '';
+                nicRows.appendChild(buildBasicNicRow('Production NIC'));
+                nicRows.appendChild(buildBasicNicRow('Management NIC'));
             }
             if (mode === 'vendor') {
                 document.getElementById('vendorConfigName').value = '';
@@ -353,14 +388,62 @@
             const name = document.getElementById('basicConfigName').value.trim();
             if (!name) { alert('Config name is required.'); return; }
             const components = [];
-            const add = (type, val) => {
-                if (val.trim()) components.push({component_type: type, specs: val.trim()});
+            const clamp = id => Math.min(255, Math.max(1, parseInt(document.getElementById(id).value) || 1));
+            const add = (type, valId, qtyId) => {
+                const val = document.getElementById(valId).value.trim();
+                if (!val) return;
+                components.push({component_type: type, specs: val, quantity: clamp(qtyId)});
             };
-            add('CPU',          document.getElementById('basicCPU').value);
-            add('Memory',       document.getElementById('basicMemory').value);
-            add('Disk',         document.getElementById('basicDisk').value);
-            add('Power Supply', document.getElementById('basicPSU').value);
+            add('CPU',          'basicCPU',    'basicCPUQty');
+            add('Memory',       'basicMemory', 'basicMemoryQty');
+            add('Disk',         'basicDisk',   'basicDiskQty');
+            add('Power Supply', 'basicPSU',    'basicPSUQty');
+            // NIC rows
+            document.querySelectorAll('#basicNicRows .basic-nic-row').forEach(row => {
+                const pn   = row.querySelector('.nic-part-select').value;
+                if (!pn) return;
+                const role = row.querySelector('.nic-role-select').value;
+                const qty  = Math.min(255, Math.max(1, parseInt(row.querySelector('.comp-qty').value) || 1));
+                const opt  = row.querySelector('.nic-part-select').selectedOptions[0];
+                components.push({
+                    component_type: 'Network Card',
+                    part_number:    pn,
+                    model:          role,
+                    specs:          opt.dataset.desc || null,
+                    quantity:       qty,
+                });
+            });
             await _submitConfig(name, components);
+        }
+
+        // ── Basic NIC rows ────────────────────────────────────────────────────
+
+        const NIC_ROLES = ['Production NIC', 'Management NIC', 'Storage NIC', 'Additional NIC'];
+
+        function buildBasicNicRow(role) {
+            const opts = nicCatalog.map(n =>
+                `<option value="${n.part_number}" data-desc="${(n.description||'').replace(/"/g,'&quot;')}">`+
+                `[${n.manufacturer}] ${n.part_number}${n.description ? ' — ' + n.description.slice(0,55) : ''}</option>`
+            ).join('');
+            const roleOpts = NIC_ROLES.map(r =>
+                `<option value="${r}"${r === role ? ' selected' : ''}>${r}</option>`
+            ).join('');
+            const row = document.createElement('div');
+            row.className = 'basic-nic-row';
+            row.innerHTML = `
+                <select class="nic-role-select">${roleOpts}</select>
+                <select class="nic-part-select">
+                    <option value="">— Select NIC —</option>
+                    ${opts}
+                </select>
+                <input type="number" class="comp-qty" value="1" min="1" max="255" title="Quantity">
+                <button class="btn-remove-comp" onclick="this.closest('.basic-nic-row').remove()" title="Remove">&times;</button>
+            `;
+            return row;
+        }
+
+        function addBasicNicRow() {
+            document.getElementById('basicNicRows').appendChild(buildBasicNicRow('Additional NIC'));
         }
 
         // ── Build from Vendor ─────────────────────────────────────────────────
@@ -416,6 +499,7 @@
                     ${opts}
                 </select>
                 <input type="text" class="vendor-comp-desc" placeholder="Description / specs (optional)">
+                <input type="number" class="comp-qty" value="1" min="1" max="255" title="Quantity">
                 <button class="btn-remove-comp" onclick="this.closest('.vendor-comp-row').remove()" title="Remove">&times;</button>
             `;
             return row;
@@ -444,6 +528,7 @@
                 </select>
                 <input type="text" class="comp-part" placeholder="Part number">
                 <input type="text" class="vendor-comp-desc" placeholder="Description / specs">
+                <input type="number" class="comp-qty" value="1" min="1" max="255" title="Quantity">
                 <button class="btn-remove-comp" onclick="this.closest('.vendor-comp-row').remove()" title="Remove">&times;</button>
             `;
             area.appendChild(row);
@@ -453,6 +538,8 @@
             const name = document.getElementById('vendorConfigName').value.trim();
             if (!name) { alert('Config name is required.'); return; }
             const components = [];
+
+            const clampQty = el => Math.min(255, Math.max(1, parseInt(el?.value) || 1));
 
             // Rows from server catalog sections
             document.querySelectorAll('.vendor-comp-row:not(.vendor-custom-row)').forEach(row => {
@@ -465,6 +552,7 @@
                     component_type: ctype,
                     part_number:    opt.dataset.pn || null,
                     specs:          desc || opt.dataset.desc || null,
+                    quantity:       clampQty(row.querySelector('.comp-qty')),
                 });
             });
 
@@ -474,7 +562,12 @@
                 const pn    = row.querySelector('.comp-part').value.trim();
                 const desc  = row.querySelector('.vendor-comp-desc').value.trim();
                 if (ctype && (pn || desc)) {
-                    components.push({component_type: ctype, part_number: pn || null, specs: desc || null});
+                    components.push({
+                        component_type: ctype,
+                        part_number:    pn || null,
+                        specs:          desc || null,
+                        quantity:       clampQty(row.querySelector('.comp-qty')),
+                    });
                 }
             });
 
@@ -649,7 +742,7 @@
                     </div>
                     ${c.components.length ? `
                     <table class="config-components-table">
-                        <thead><tr><th>Type</th><th>Manufacturer</th><th>Part #</th><th>Model</th><th>Specs</th></tr></thead>
+                        <thead><tr><th>Type</th><th>Manufacturer</th><th>Part #</th><th>Model</th><th>Specs</th><th class="qty-col">Qty</th></tr></thead>
                         <tbody>${c.components.map(comp => `
                             <tr>
                                 <td><span class="component-type-badge">${comp.component_type || '—'}</span></td>
@@ -657,6 +750,7 @@
                                 <td class="mono">${comp.part_number || '—'}</td>
                                 <td>${comp.model || '—'}</td>
                                 <td class="specs-cell">${comp.specs || '—'}</td>
+                                <td class="qty-col mono">${comp.quantity || 1}</td>
                             </tr>`).join('')}
                         </tbody>
                     </table>` : '<p class="empty-section-hint">No components.</p>'}
