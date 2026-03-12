@@ -400,6 +400,11 @@ def migrate_db():
         db.execute("""INSERT OR IGNORE INTO transaction_types (code, label, description, token_cost)
             VALUES ('parse_quickspec', 'Parse QuickSpec',
                     'HPE QuickSpec PDF parsed into server catalog with component options', 5)""")
+
+        # ── M14d: edit_config transaction type ───────────────────────────────
+        db.execute("""INSERT OR IGNORE INTO transaction_types (code, label, description, token_cost)
+            VALUES ('edit_config', 'Edit Base Config',
+                    'Base config name or components updated', 2)""")
         db.commit()
 
         # ── M15: merge learned_components → defined_components, drop table ────
