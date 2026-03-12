@@ -1730,10 +1730,12 @@ def admin_components():
         SELECT cc.component_type, cc.manufacturer, cc.part_number, cc.model,
                cc.description AS specs, cc.data_source,
                COUNT(DISTINCT bcc.config_id) AS config_refs,
-               COUNT(DISTINCT sqc.server_id) AS server_refs
+               COUNT(DISTINCT sqc.server_id) AS server_refs,
+               GROUP_CONCAT(DISTINCT s.model_name) AS server_models
         FROM component_catalog cc
         LEFT JOIN base_config_components bcc ON bcc.component_id = cc.id
         LEFT JOIN server_quickspec_components sqc ON sqc.catalog_id = cc.id
+        LEFT JOIN servers s ON s.id = sqc.server_id
         GROUP BY cc.id
         ORDER BY cc.component_type, cc.part_number
     """).fetchall()

@@ -70,7 +70,13 @@
                         <td>{{ c.model or '—' }}</td>
                         <td>{{ c.specs or '—' }}</td>
                         <td>{% if c.config_refs %}<span class="comp-seen-badge">{{ c.config_refs }}×</span>{% else %}—{% endif %}</td>
-                        <td>{% if c.server_refs %}<span class="comp-seen-badge">{{ c.server_refs }}×</span>{% else %}—{% endif %}</td>
+                        <td>
+                            {% if c.server_models %}
+                                {% for m in c.server_models.split(',') %}
+                                    <span class="server-model-tag">{{ m.strip() }}</span>
+                                {% endfor %}
+                            {% else %}—{% endif %}
+                        </td>
                         <td><span class="comp-source-badge comp-source-{{ c.data_source | replace('_', '-') | lower }}">{{ c.data_source }}</span></td>
                     </tr>
                     {% endfor %}
