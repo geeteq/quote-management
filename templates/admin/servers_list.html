@@ -19,6 +19,7 @@
                     <th>Generation</th>
                     <th>Components</th>
                     <th>Added</th>
+                    <th>PDF</th>
                     <th></th>
                 </tr>
             </thead>
@@ -46,6 +47,13 @@
                     </td>
                     <td class="mono" style="font-size:0.76rem;color:#64748b;">
                         {{ s.created_at[:10] if s.created_at else '—' }}
+                    </td>
+                    <td>
+                        {% if s.pdf_path %}
+                        <a href="admin/servers/{{ s.id }}/pdf" target="_blank" class="btn-server-pdf">
+                            &#128196; QuickSpec
+                        </a>
+                        {% else %}—{% endif %}
                     </td>
                     <td>
                         <a href="admin/servers/{{ s.id }}/components"

@@ -398,6 +398,90 @@ def migrate_db():
                     'HPE QuickSpec PDF parsed into server catalog with component options', 5)""")
         db.commit()
 
+        # ── M15: merge learned_components → defined_components, drop table ────
+        if 'learned_components' in tables():
+            db.execute("""
+                INSERT INTO defined_components (component_type, manufacturer_id, part_number, model, specs)
+                SELECT DISTINCT lc.component_type, lc.manufacturer_id, lc.part_number, lc.model, lc.specs_json
+                FROM learned_components lc
+                WHERE lc.part_number IS NOT NULL AND lc.part_number != ''
+                  AND NOT EXISTS (
+                      SELECT 1 FROM defined_components dc
+                      WHERE dc.part_number = lc.part_number
+                        AND dc.component_type = lc.component_type
+                  )
+            """)
+            db.execute("DROP TABLE learned_components")
+            db.commit()
+            logger.info("M15: learned_components merged into defined_components and dropped")
+
+        # ── M16: merge defined_components → component_catalog, update FK ─────
+        if 'defined_components' in tables():
+            dc_rows = db.execute("""
+                SELECT dc.id, dc.component_type, m.name AS manufacturer,
+                       dc.part_number, dc.model, dc.specs
+                FROM defined_components dc
+                LEFT JOIN manufacturers m ON dc.manufacturer_id = m.id
+            """).fetchall()
+
+            id_map = {}
+            for row in dc_rows:
+                ctype = row['component_type']
+                mfr   = row['manufacturer']
+                pn    = row['part_number']
+                # model is NOT NULL in component_catalog — fall back through part_number → specs
+                model = row['model'] or pn or row['specs'] or 'unknown'
+                specs = row['specs']
+
+                db.execute("""
+                    INSERT OR IGNORE INTO component_catalog
+                        (component_type, manufacturer, model, part_number, description, data_source)
+                    VALUES (?, ?, ?, ?, ?, 'config')
+                """, (ctype, mfr, model, pn, specs))
+
+                if mfr is None:
+                    cat = db.execute(
+                        "SELECT id FROM component_catalog "
+                        "WHERE component_type=? AND manufacturer IS NULL AND model=?",
+                        (ctype, model)
+                    ).fetchone()
+                else:
+                    cat = db.execute(
+                        "SELECT id FROM component_catalog "
+                        "WHERE component_type=? AND manufacturer=? AND model=?",
+                        (ctype, mfr, model)
+                    ).fetchone()
+
+                if cat:
+                    id_map[row['id']] = cat['id']
+
+            # Recreate base_config_components with FK pointing to component_catalog
+            db.execute("""
+                CREATE TABLE base_config_components_new (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    config_id    INTEGER NOT NULL REFERENCES base_configs(id) ON DELETE CASCADE,
+                    component_id INTEGER NOT NULL REFERENCES component_catalog(id),
+                    quantity     INTEGER NOT NULL DEFAULT 1
+                )
+            """)
+            for bcc in db.execute(
+                "SELECT config_id, component_id, quantity FROM base_config_components"
+            ).fetchall():
+                new_id = id_map.get(bcc['component_id'])
+                if new_id:
+                    db.execute(
+                        "INSERT INTO base_config_components_new "
+                        "(config_id, component_id, quantity) VALUES (?, ?, ?)",
+                        (bcc['config_id'], new_id, bcc['quantity'])
+                    )
+            db.execute("DROP TABLE base_config_components")
+            db.execute("ALTER TABLE base_config_components_new RENAME TO base_config_components")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_bcc_config    ON base_config_components(config_id)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_bcc_component ON base_config_components(component_id)")
+            db.execute("DROP TABLE defined_components")
+            db.commit()
+            logger.info("M16: defined_components merged into component_catalog, base_config_components FK updated")
+
     finally:
         db.execute("PRAGMA foreign_keys = ON")
         db.close()
@@ -1236,18 +1320,27 @@ def api_manufacturers():
 
 
 # =============================================================================
-# LEARNED COMPONENTS API (read-only, for dropdown population)
+# COMPONENTS API (read-only, for dropdown population)
 # =============================================================================
 
 @app.route('/api/components/learned')
 def api_learned_components():
-    db = get_db()
-    rows = db.execute("""
-        SELECT DISTINCT component_type, manufacturer, part_number, model, specs_json
-        FROM learned_components
-        WHERE part_number IS NOT NULL AND part_number != ''
-        ORDER BY component_type, manufacturer, part_number
-    """).fetchall()
+    ctype = request.args.get('type', '').strip()
+    q     = request.args.get('q', '').strip()
+
+    sql    = "SELECT component_type, manufacturer, part_number, model, description FROM component_catalog WHERE 1=1"
+    params = []
+    if ctype:
+        sql += " AND component_type = ?"
+        params.append(ctype)
+    if q:
+        like = f'%{q}%'
+        sql += " AND (model LIKE ? OR part_number LIKE ? OR description LIKE ? OR manufacturer LIKE ?)"
+        params.extend([like, like, like, like])
+    sql += " ORDER BY manufacturer, part_number LIMIT 15"
+
+    db   = get_db()
+    rows = db.execute(sql, params).fetchall()
     db.close()
     return jsonify([dict(r) for r in rows])
 
@@ -1266,13 +1359,12 @@ def api_project_configs(project_id):
     result = []
     for c in configs:
         components = db.execute("""
-            SELECT dc.id, dc.component_type, dc.part_number, dc.specs, dc.model,
-                   m.name AS manufacturer_name, bcc.quantity
+            SELECT cc.id, cc.component_type, cc.part_number, cc.description AS specs,
+                   cc.model, cc.manufacturer AS manufacturer_name, bcc.quantity
             FROM base_config_components bcc
-            JOIN defined_components dc ON bcc.component_id = dc.id
-            LEFT JOIN manufacturers m  ON dc.manufacturer_id = m.id
+            JOIN component_catalog cc ON bcc.component_id = cc.id
             WHERE bcc.config_id = ?
-            ORDER BY dc.component_type, dc.part_number
+            ORDER BY cc.component_type, cc.part_number
         """, (c['id'],)).fetchall()
         result.append({**dict(c), 'components': [dict(comp) for comp in components]})
     db.close()
@@ -1293,22 +1385,47 @@ def api_create_config(project_id):
         )
         config_id = cursor.lastrowid
         for comp in data.get('components', []):
-            # Insert into defined_components, then link via junction
+            ctype = comp.get('component_type')
+            pn    = comp.get('part_number') or None
+            model = comp.get('model') or pn or comp.get('specs') or 'unknown'
+            specs = comp.get('specs') or None
+
+            # Accept manufacturer as text directly, or resolve from id
+            mfr = comp.get('manufacturer') or None
+            if not mfr:
+                mfr_id = comp.get('manufacturer_id') or None
+                if mfr_id:
+                    mfr_row = cursor.execute(
+                        "SELECT name FROM manufacturers WHERE id=?", (mfr_id,)
+                    ).fetchone()
+                    if mfr_row:
+                        mfr = mfr_row['name']
+
+            # Upsert into component_catalog, then link via junction
             cursor.execute("""
-                INSERT INTO defined_components (component_type, manufacturer_id, part_number, specs, model)
-                VALUES (?, ?, ?, ?, ?)
-            """, (
-                comp.get('component_type'),
-                comp.get('manufacturer_id') or None,
-                comp.get('part_number'),
-                comp.get('specs'),
-                comp.get('model'),
-            ))
-            component_id = cursor.lastrowid
-            cursor.execute(
-                "INSERT INTO base_config_components (config_id, component_id, quantity) VALUES (?, ?, ?)",
-                (config_id, component_id, comp.get('quantity', 1))
-            )
+                INSERT OR IGNORE INTO component_catalog
+                    (component_type, manufacturer, model, part_number, description, data_source)
+                VALUES (?, ?, ?, ?, ?, 'config')
+            """, (ctype, mfr, model, pn, specs))
+
+            if mfr is None:
+                cat = cursor.execute(
+                    "SELECT id FROM component_catalog "
+                    "WHERE component_type=? AND manufacturer IS NULL AND model=?",
+                    (ctype, model)
+                ).fetchone()
+            else:
+                cat = cursor.execute(
+                    "SELECT id FROM component_catalog "
+                    "WHERE component_type=? AND manufacturer=? AND model=?",
+                    (ctype, mfr, model)
+                ).fetchone()
+
+            if cat:
+                cursor.execute(
+                    "INSERT INTO base_config_components (config_id, component_id, quantity) VALUES (?, ?, ?)",
+                    (config_id, cat['id'], comp.get('quantity', 1))
+                )
         db.commit()
         comp_count = len(data.get('components', []))
         # 5 base (add_config) + 1 per component (add_config_component)
@@ -1371,13 +1488,12 @@ def api_config_match(config_id):
 
         # Config components
         config_comps = db.execute("""
-            SELECT dc.component_type, dc.part_number, dc.model,
-                   m.name AS manufacturer_name, bcc.quantity
+            SELECT cc.component_type, cc.part_number, cc.model,
+                   cc.manufacturer AS manufacturer_name, bcc.quantity
             FROM base_config_components bcc
-            JOIN defined_components dc ON bcc.component_id = dc.id
-            LEFT JOIN manufacturers m  ON dc.manufacturer_id = m.id
+            JOIN component_catalog cc ON bcc.component_id = cc.id
             WHERE bcc.config_id = ?
-            ORDER BY dc.component_type
+            ORDER BY cc.component_type
         """, (config_id,)).fetchall()
         config_comps = [dict(c) for c in config_comps]
 
@@ -1588,16 +1704,15 @@ def api_transactions_summary():
 def admin_entered_components():
     db = get_db()
     rows = db.execute("""
-        SELECT dc.id, dc.component_type, dc.part_number, dc.specs, dc.model,
-               dc.created_at, m.name AS manufacturer_name,
+        SELECT cc.id, cc.component_type, cc.part_number, cc.description AS specs, cc.model,
+               cc.created_at, cc.manufacturer AS manufacturer_name,
                bc.config_name, p.name AS project_name, t.name AS tenant_name
-        FROM defined_components dc
-        LEFT JOIN manufacturers       m   ON dc.manufacturer_id = m.id
-        LEFT JOIN base_config_components bcc ON bcc.component_id = dc.id
-        LEFT JOIN base_configs         bc  ON bcc.config_id = bc.id
-        LEFT JOIN projects             p   ON bc.project_id = p.id
-        LEFT JOIN tenants              t   ON p.tenant_id = t.id
-        ORDER BY dc.created_at DESC
+        FROM component_catalog cc
+        JOIN base_config_components bcc ON bcc.component_id = cc.id
+        JOIN base_configs         bc  ON bcc.config_id = bc.id
+        JOIN projects             p   ON bc.project_id = p.id
+        JOIN tenants              t   ON p.tenant_id = t.id
+        ORDER BY cc.created_at DESC
     """).fetchall()
     db.close()
     return render_template('admin/entered_components.html', components=[dict(r) for r in rows])
@@ -1605,30 +1720,21 @@ def admin_entered_components():
 
 @app.route('/admin/components')
 def admin_components():
-    """List all distinct learned components from the components table."""
-    import json as _json
+    """List all components from component_catalog."""
     db = get_db()
     rows = db.execute("""
-        SELECT c.component_type, c.manufacturer, c.part_number, c.model,
-               c.specs_json, COUNT(*) as seen,
-               MIN(li.description) as description
-        FROM learned_components c
-        LEFT JOIN line_items li ON c.line_item_id = li.id
-        GROUP BY c.component_type, c.part_number
-        ORDER BY c.component_type, c.part_number
+        SELECT cc.component_type, cc.manufacturer, cc.part_number, cc.model,
+               cc.description AS specs, cc.data_source,
+               COUNT(DISTINCT bcc.config_id) AS config_refs,
+               COUNT(DISTINCT sqc.server_id) AS server_refs
+        FROM component_catalog cc
+        LEFT JOIN base_config_components bcc ON bcc.component_id = cc.id
+        LEFT JOIN server_quickspec_components sqc ON sqc.catalog_id = cc.id
+        GROUP BY cc.id
+        ORDER BY cc.component_type, cc.part_number
     """).fetchall()
     db.close()
-
-    components = []
-    for row in rows:
-        d = dict(row)
-        try:
-            d['specs'] = _json.loads(row['specs_json']) if row['specs_json'] else {}
-        except Exception:
-            d['specs'] = {}
-        components.append(d)
-
-    return render_template('admin/components_list.html', components=components)
+    return render_template('admin/components_list.html', components=[dict(r) for r in rows])
 
 
 @app.route('/admin/tenants/<int:tenant_id>/projects')
@@ -1977,7 +2083,7 @@ def admin_servers():
     db = get_db()
     servers = db.execute("""
         SELECT s.id, s.model_name, s.model_number, s.form_factor, s.generation,
-               s.created_at, m.name AS manufacturer_name,
+               s.created_at, s.pdf_path, m.name AS manufacturer_name,
                COUNT(sqc.id) AS component_count
         FROM servers s
         LEFT JOIN manufacturers m ON s.manufacturer_id = m.id
@@ -2031,18 +2137,26 @@ def api_catalog_components():
 
 @app.route('/api/admin/servers')
 def api_admin_servers():
-    """JSON list of servers with component counts."""
-    db = get_db()
-    rows = db.execute("""
+    """JSON list of servers with component counts. Accepts ?q= for search."""
+    q      = request.args.get('q', '').strip()
+    db     = get_db()
+    sql    = """
         SELECT s.id, s.model_name, s.model_number, s.form_factor, s.generation,
                s.created_at, m.name AS manufacturer_name,
                COUNT(sqc.id) AS component_count
         FROM servers s
         LEFT JOIN manufacturers m ON s.manufacturer_id = m.id
         LEFT JOIN server_quickspec_components sqc ON sqc.server_id = s.id
-        GROUP BY s.id
-        ORDER BY s.model_name
-    """).fetchall()
+    """
+    params = []
+    if q:
+        sql += " WHERE s.model_name LIKE ? OR s.model_number LIKE ? OR m.name LIKE ?"
+        like = f'%{q}%'
+        params.extend([like, like, like])
+    sql += " GROUP BY s.id ORDER BY s.model_name"
+    if q:
+        sql += " LIMIT 10"
+    rows = db.execute(sql, params).fetchall()
     db.close()
     return jsonify([dict(r) for r in rows])
 
@@ -2097,6 +2211,24 @@ def admin_server_components(server_id):
         server=dict(server),
         components=[dict(c) for c in components],
     )
+
+
+@app.route('/admin/servers/<int:server_id>/pdf')
+def admin_server_pdf(server_id):
+    """Serve the QuickSpec PDF stored for a server."""
+    from flask import send_file
+    db = get_db()
+    row = db.execute('SELECT pdf_path, model_name FROM servers WHERE id = ?', (server_id,)).fetchone()
+    db.close()
+    if not row or not row['pdf_path']:
+        return 'PDF not found', 404
+    pdf_path = row['pdf_path']
+    if not os.path.isabs(pdf_path):
+        pdf_path = os.path.join(_app_dir, pdf_path)
+    if not os.path.exists(pdf_path):
+        return 'PDF file not found on disk', 404
+    return send_file(pdf_path, mimetype='application/pdf',
+                     download_name=os.path.basename(pdf_path))
 
 
 if __name__ == '__main__':

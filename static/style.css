@@ -3919,6 +3919,20 @@ button:hover {
 }
 .btn-server-detail:hover { background: #e2e8f0; color: #1e293b; }
 
+.btn-server-pdf {
+    padding: 4px 10px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.75rem;
+    color: #1d4ed8;
+    font-weight: 500;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+.btn-server-pdf:hover { background: #dbeafe; color: #1e40af; }
+
 /* ══════════════════════════════════════════════════════════════════════════
    SERVER COMPONENTS DETAIL — server_components.html
    ══════════════════════════════════════════════════════════════════════════ */
