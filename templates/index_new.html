@@ -887,12 +887,31 @@
             const label  = document.getElementById('serverLockLabel');
             label.textContent = `Components restricted to ${server.manufacturer_name || ''} ${server.model_name}`.trim();
             banner.style.display = 'flex';
+            filterNicSelects(components['Network Card'] || []);
         }
 
         function clearServerLock() {
             _lockedServer = null;
             document.getElementById('serverLockBanner').style.display = 'none';
             document.getElementById('serverLockLabel').textContent = '';
+            filterNicSelects(null); // restore all options
+        }
+
+        function filterNicSelects(pool) {
+            ['nicProdSelect', 'nicMgmtSelect'].forEach(selId => {
+                const sel = document.getElementById(selId);
+                if (!sel) return;
+                Array.from(sel.options).forEach(opt => {
+                    if (!opt.value) return; // keep placeholder
+                    if (pool === null) {
+                        opt.hidden = false; // unlock: show all
+                    } else {
+                        opt.hidden = !pool.some(c => c.part_number === opt.value);
+                    }
+                });
+                // Reset selection if current value is now hidden
+                if (sel.selectedOptions[0] && sel.selectedOptions[0].hidden) sel.value = '';
+            });
         }
 
         async function fetchAcResults(input, dropdown, componentType, q) {
