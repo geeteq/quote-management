@@ -494,11 +494,13 @@
             if (!el) {
                 el = document.createElement('div');
                 el.id = 'pageToast';
+                el.innerHTML = '<span class="toast-msg"></span><span class="toast-close" aria-label="Dismiss">&#x2715;</span>';
                 el.addEventListener('click', () => { clearTimeout(el._timer); el.style.display = 'none'; });
-                document.body.appendChild(el);
+                // Guard: body may not exist in edge cases — fall back to documentElement
+                (document.body || document.documentElement).appendChild(el);
             }
             el.className = 'page-toast page-toast-' + (type || 'info');
-            el.textContent = msg;
+            el.querySelector('.toast-msg').textContent = msg;  // textContent is safe — no XSS
             el.style.display = 'block';
             clearTimeout(el._timer);
             el._timer = setTimeout(() => { el.style.display = 'none'; }, 7000);
@@ -638,7 +640,7 @@
             });
 
             if (!components.length) { alert('Select at least one component before saving.'); return; }
-            await _submitConfig(name, components);
+            await _submitConfig(name, components);  // return value intentionally unused — alert() handles failure
         }
 
         // ── Shared submit ─────────────────────────────────────────────────────

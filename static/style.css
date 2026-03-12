@@ -3279,14 +3279,14 @@ button:hover {
     word-break: break-word;
     overflow-wrap: break-word;
 }
-.page-toast::after {
-    content: '×';
+.toast-close {
     position: absolute;
     right: 14px;
     top: 50%;
     transform: translateY(-50%);
     font-size: 1rem;
     opacity: 0.6;
+    line-height: 1;
 }
 .page-toast-warn {
     background: #fffbeb;
