@@ -1821,7 +1821,7 @@ button:hover {
 /* Admin Content Area */
 .admin-content {
     flex: 1;
-    padding: 40px;
+    padding: 40px 24px;
     overflow-y: auto;
 }
 
@@ -3862,6 +3862,10 @@ button:hover {
 /* ══════════════════════════════════════════════════════════════════════════
    SERVER CATALOG — servers_list.html
    ══════════════════════════════════════════════════════════════════════════ */
+
+.servers-content {
+    margin: 0 -8px; /* extra width on top of reduced admin-content horizontal padding */
+}
 
 .servers-header-row {
     display: flex;
