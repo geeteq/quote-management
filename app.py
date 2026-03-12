@@ -35,6 +35,10 @@ app.config['DATABASE'] = os.path.join(DATA_DIR, 'quotes.db')
 _base = os.environ.get('BASE_URL', '/quotes').rstrip('/')
 BASE_HREF = _base + '/'
 
+# Cache-bust static assets on every restart so browsers pick up CSS/JS changes
+import time as _time
+STATIC_VERSION = str(int(_time.time()))
+
 
 @app.template_filter('is_expired')
 def is_expired_filter(expiry_date):
@@ -64,7 +68,7 @@ GIT_BRANCH = _git_branch()
 
 @app.context_processor
 def inject_base_href():
-    return {'base_href': BASE_HREF, 'git_branch': GIT_BRANCH}
+    return {'base_href': BASE_HREF, 'git_branch': GIT_BRANCH, 'static_version': STATIC_VERSION}
 
 
 ALLOWED_EXTENSIONS = {'pdf'}

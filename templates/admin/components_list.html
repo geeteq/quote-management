@@ -4,27 +4,37 @@
     <meta charset="UTF-8">
     <base href="{{ base_href }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Learned Components - Admin</title>
-    <link rel="stylesheet" href="static/style.css">
+    <title>Components - Admin</title>
+    <link rel="stylesheet" href="static/style.css?v={{ static_version }}">
 </head>
 <body>
     <div class="components-content">
         <div class="admin-content-header">
-            <h1>Learned Components</h1>
+            <h1>Components</h1>
+            <span class="admin-record-count">{{ components|length }} components</span>
         </div>
 
         {% if components %}
         {% set seen_types = [] %}
+        {% set seen_sources = [] %}
         {% for c in components %}
             {% if c.component_type not in seen_types %}{% set _ = seen_types.append(c.component_type) %}{% endif %}
+            {% if c.data_source not in seen_sources %}{% set _ = seen_sources.append(c.data_source) %}{% endif %}
         {% endfor %}
 
         <div class="components-toolbar">
-            <label for="typeFilter">Filter by type</label>
+            <label for="typeFilter">Type</label>
             <select id="typeFilter" class="filter-select">
                 <option value="all">All types</option>
                 {% for t in seen_types %}
                 <option value="{{ t }}">{{ t }}</option>
+                {% endfor %}
+            </select>
+            <label for="sourceFilter" style="margin-left:12px;">Source</label>
+            <select id="sourceFilter" class="filter-select">
+                <option value="all">All sources</option>
+                {% for s in seen_sources %}
+                <option value="{{ s }}">{{ s }}</option>
                 {% endfor %}
             </select>
             <span class="components-summary-stat">
@@ -40,14 +50,16 @@
                         <th>Type</th>
                         <th>Manufacturer</th>
                         <th>Part Number</th>
+                        <th>Model</th>
                         <th>Description</th>
-                        <th>Specs</th>
-                        <th>Seen</th>
+                        <th>Configs</th>
+                        <th>Servers</th>
+                        <th>Source</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for c in components %}
-                    <tr data-type="{{ c.component_type }}">
+                    <tr data-type="{{ c.component_type }}" data-source="{{ c.data_source }}">
                         <td>
                             <span class="comp-type-badge {{ c.component_type | replace(' ', '-') }}">
                                 {{ c.component_type }}
@@ -55,21 +67,11 @@
                         </td>
                         <td>{{ c.manufacturer or '—' }}</td>
                         <td class="comp-part-number">{{ c.part_number or '—' }}</td>
-                        <td>{{ c.description or '—' }}</td>
-                        <td>
-                            {% if c.specs %}
-                                <div class="comp-specs-cell">
-                                    {% for key, val in c.specs.items() %}
-                                        {% if val is not none and val != '' %}
-                                        <span class="comp-spec-pill">{{ key.replace('_', ' ') }}: {{ val }}</span>
-                                        {% endif %}
-                                    {% endfor %}
-                                </div>
-                            {% else %}
-                                <span class="comp-spec-pill empty">no specs</span>
-                            {% endif %}
-                        </td>
-                        <td><span class="comp-seen-badge">{{ c.seen }}×</span></td>
+                        <td>{{ c.model or '—' }}</td>
+                        <td>{{ c.specs or '—' }}</td>
+                        <td>{% if c.config_refs %}<span class="comp-seen-badge">{{ c.config_refs }}×</span>{% else %}—{% endif %}</td>
+                        <td>{% if c.server_refs %}<span class="comp-seen-badge">{{ c.server_refs }}×</span>{% else %}—{% endif %}</td>
+                        <td><span class="comp-source-badge comp-source-{{ c.data_source | replace('_', '-') | lower }}">{{ c.data_source }}</span></td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -77,9 +79,30 @@
         </div>
         {% else %}
         <div class="empty-state">
-            <p>No components found. Upload quotes to populate the component registry.</p>
+            <p>No components found. Add base configs or upload a QuickSpec PDF to get started.</p>
         </div>
         {% endif %}
     </div>
+    <script>
+        (function () {
+            const typeFilter   = document.getElementById('typeFilter');
+            const sourceFilter = document.getElementById('sourceFilter');
+            if (!typeFilter) return;
+            const rows = Array.from(document.querySelectorAll('#componentsTable tbody tr'));
+
+            function applyFilters() {
+                const t = typeFilter.value;
+                const s = sourceFilter.value;
+                rows.forEach(r => {
+                    const typeMatch   = t === 'all' || r.dataset.type   === t;
+                    const sourceMatch = s === 'all' || r.dataset.source === s;
+                    r.style.display = (typeMatch && sourceMatch) ? '' : 'none';
+                });
+            }
+
+            typeFilter.addEventListener('change', applyFilters);
+            sourceFilter.addEventListener('change', applyFilters);
+        })();
+    </script>
 </body>
 </html>

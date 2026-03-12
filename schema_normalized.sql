@@ -451,30 +451,16 @@ CREATE TABLE IF NOT EXISTS base_configs (
 );
 
 -- =============================================================================
--- DEFINED COMPONENTS (manually defined, standalone, never auto-modified)
--- =============================================================================
-CREATE TABLE IF NOT EXISTS defined_components (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    component_type  TEXT,
-    manufacturer_id INTEGER REFERENCES manufacturers(id),
-    part_number     TEXT,
-    model           TEXT,
-    specs           TEXT,
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- =============================================================================
--- BASE CONFIG COMPONENTS (M:N junction: configs ↔ defined_components)
+-- BASE CONFIG COMPONENTS (M:N junction: configs ↔ component_catalog)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS base_config_components (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    config_id    INTEGER NOT NULL REFERENCES base_configs(id)    ON DELETE CASCADE,
-    component_id INTEGER NOT NULL REFERENCES defined_components(id),
+    config_id    INTEGER NOT NULL REFERENCES base_configs(id)      ON DELETE CASCADE,
+    component_id INTEGER NOT NULL REFERENCES component_catalog(id),
     quantity     INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE INDEX IF NOT EXISTS idx_base_configs_project ON base_configs(project_id);
-CREATE INDEX IF NOT EXISTS idx_defined_comp_type    ON defined_components(component_type);
 CREATE INDEX IF NOT EXISTS idx_bcc_config           ON base_config_components(config_id);
 CREATE INDEX IF NOT EXISTS idx_bcc_component        ON base_config_components(component_id);
 
