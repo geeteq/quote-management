@@ -8,57 +8,56 @@
     <link rel="stylesheet" href="static/style.css">
 </head>
 <body>
-<div style="max-width:1200px;margin:0 auto;padding:32px 24px;">
+<div class="sc-page-content">
 
-    <!-- Header -->
-    <div class="sc-header">
-        <a href="javascript:history.back()" class="sc-back-link">&#8592; Back</a>
+    <div class="admin-content-header">
         <div class="sc-title-block">
-            <h1 class="sc-model-name">{{ server.model_name }}</h1>
+            <a href="javascript:history.back()" class="sc-back-link">&#8592; Back to Servers</a>
+            <h1>{{ server.model_name }}</h1>
             <div class="sc-meta-row">
                 {% if server.form_factor %}<span class="server-ff-badge">{{ server.form_factor }}</span>{% endif %}
                 {% if server.generation %}<span class="server-gen-badge">{{ server.generation }}</span>{% endif %}
-                <span class="sc-comp-total">{{ components|length }} components</span>
             </div>
         </div>
+        <span class="admin-record-count">{{ components|length }} components</span>
     </div>
 
-    <!-- Group components by type -->
-    {% set types = components | map(attribute='component_type') | unique | list %}
     {% for ctype in ['CPU','Memory','Disk','Storage Controller','Network Card','Power Supply','GPU','Additional Hardware'] %}
         {% set type_comps = components | selectattr('component_type','equalto',ctype) | list %}
         {% if type_comps %}
         <div class="sc-section">
             <div class="sc-section-header">
-                <span class="component-type-badge">{{ ctype }}</span>
+                <span class="comp-type-badge {{ ctype | replace(' ', '-') }}">{{ ctype }}</span>
                 <span class="sc-section-count">{{ type_comps|length }}</span>
             </div>
-            <table class="components-table sc-table">
-                <thead>
-                    <tr>
-                        <th>Part #</th>
-                        <th>Description</th>
-                        <th>Role</th>
-                        <th>Standard</th>
-                        <th>Optional</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for c in type_comps %}
-                    <tr>
-                        <td class="mono" style="white-space:nowrap;">{{ c.part_number }}</td>
-                        <td class="sc-desc">{{ c.description or '—' }}</td>
-                        <td style="font-size:0.78rem;color:#64748b;">{{ c.component_role or c.component_type or '—' }}</td>
-                        <td class="match-bool {% if c.is_standard %}match-yes{% else %}match-no{% endif %}">
-                            {{ '✓' if c.is_standard else '✗' }}
-                        </td>
-                        <td class="match-bool {% if c.is_optional %}match-yes{% else %}match-no{% endif %}">
-                            {{ '✓' if c.is_optional else '✗' }}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="components-table-wrapper">
+                <table class="components-table">
+                    <thead>
+                        <tr>
+                            <th>Part #</th>
+                            <th>Description</th>
+                            <th>Role</th>
+                            <th>Standard</th>
+                            <th>Optional</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in type_comps %}
+                        <tr>
+                            <td class="mono" style="white-space:nowrap;">{{ c.part_number or '—' }}</td>
+                            <td>{{ c.description or '—' }}</td>
+                            <td><span class="comp-source-badge">{{ c.component_role or c.component_type or '—' }}</span></td>
+                            <td class="match-bool {% if c.is_standard %}match-yes{% else %}match-no{% endif %}">
+                                {{ '✓' if c.is_standard else '✗' }}
+                            </td>
+                            <td class="match-bool {% if c.is_optional %}match-yes{% else %}match-no{% endif %}">
+                                {{ '✓' if c.is_optional else '✗' }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
         {% endif %}
     {% endfor %}
