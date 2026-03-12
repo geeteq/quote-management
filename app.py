@@ -1356,23 +1356,38 @@ def api_learned_components():
 @app.route('/api/projects/<int:project_id>/configs')
 def api_project_configs(project_id):
     db = get_db()
-    configs = db.execute("""
-        SELECT id, config_name, created_at FROM base_configs
-        WHERE project_id = ? ORDER BY created_at DESC
-    """, (project_id,)).fetchall()
-    result = []
-    for c in configs:
-        components = db.execute("""
-            SELECT cc.id, cc.component_type, cc.part_number, cc.description AS specs,
-                   cc.model, cc.manufacturer AS manufacturer_name, bcc.quantity
-            FROM base_config_components bcc
-            JOIN component_catalog cc ON bcc.component_id = cc.id
-            WHERE bcc.config_id = ?
-            ORDER BY cc.component_type, cc.part_number
-        """, (c['id'],)).fetchall()
-        result.append({**dict(c), 'components': [dict(comp) for comp in components]})
-    db.close()
-    return jsonify(result)
+    try:
+        rows = db.execute("""
+            SELECT bc.id, bc.config_name, bc.created_at,
+                   cc.id AS comp_id, cc.component_type, cc.part_number,
+                   cc.description AS specs, cc.model,
+                   cc.manufacturer AS manufacturer_name, bcc.quantity
+            FROM base_configs bc
+            LEFT JOIN base_config_components bcc ON bcc.config_id = bc.id
+            LEFT JOIN component_catalog cc ON bcc.component_id = cc.id
+            WHERE bc.project_id = ?
+            ORDER BY bc.created_at DESC, cc.component_type, cc.part_number
+        """, (project_id,)).fetchall()
+        configs, order = {}, []
+        for r in rows:
+            cid = r['id']
+            if cid not in configs:
+                configs[cid] = {'id': cid, 'config_name': r['config_name'],
+                                'created_at': r['created_at'], 'components': []}
+                order.append(cid)
+            if r['comp_id'] is not None:
+                configs[cid]['components'].append({
+                    'id': r['comp_id'], 'component_type': r['component_type'],
+                    'part_number': r['part_number'], 'specs': r['specs'],
+                    'model': r['model'], 'manufacturer_name': r['manufacturer_name'],
+                    'quantity': r['quantity'],
+                })
+        return jsonify([configs[cid] for cid in order])
+    except Exception as e:
+        logger.error(f"api_project_configs error: {e}")
+        return jsonify({'error': 'Failed to load configs'}), 500
+    finally:
+        db.close()
 
 
 @app.route('/api/projects/<int:project_id>/configs', methods=['POST'])
@@ -1460,6 +1475,63 @@ def api_delete_config(config_id):
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+
+@app.route('/api/configs/<int:config_id>', methods=['PUT'])
+def api_update_config(config_id):
+    """Replace a config's name and all its components."""
+    data = request.get_json()
+    if not data or not data.get('config_name'):
+        return jsonify({'error': 'config_name required'}), 400
+    db = get_db()
+    try:
+        cursor = db.cursor()
+        existing = cursor.execute(
+            "SELECT id FROM base_configs WHERE id = ?", (config_id,)
+        ).fetchone()
+        if not existing:
+            return jsonify({'error': 'Config not found'}), 404
+
+        cursor.execute("UPDATE base_configs SET config_name = ? WHERE id = ?",
+                       (data['config_name'].strip(), config_id))
+        cursor.execute("DELETE FROM base_config_components WHERE config_id = ?", (config_id,))
+
+        for comp in data.get('components', []):
+            ctype = comp.get('component_type')
+            pn    = comp.get('part_number') or None
+            model = comp.get('model') or pn or comp.get('specs') or 'unknown'
+            specs = comp.get('specs') or None
+            mfr   = comp.get('manufacturer') or comp.get('manufacturer_name') or None
+
+            cursor.execute("""
+                INSERT OR IGNORE INTO component_catalog
+                    (component_type, manufacturer, model, part_number, description, data_source)
+                VALUES (?, ?, ?, ?, ?, 'config')
+            """, (ctype, mfr, model, pn, specs))
+
+            lookup = ("SELECT id FROM component_catalog "
+                      "WHERE component_type=? AND manufacturer IS NULL AND model=?"
+                      if mfr is None else
+                      "SELECT id FROM component_catalog "
+                      "WHERE component_type=? AND manufacturer=? AND model=?")
+            params = (ctype, model) if mfr is None else (ctype, mfr, model)
+            cat = cursor.execute(lookup, params).fetchone()
+            if cat:
+                cursor.execute(
+                    "INSERT INTO base_config_components (config_id, component_id, quantity) "
+                    "VALUES (?, ?, ?)",
+                    (config_id, cat['id'], max(1, int(comp.get('quantity', 1))))
+                )
+
+        db.commit()
+        log_transaction('edit_config', config_id=config_id,
+                        metadata={'config_name': data['config_name']})
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"api_update_config error: {e}")
+        return jsonify({'error': 'Failed to update config'}), 500
     finally:
         db.close()
 

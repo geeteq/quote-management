@@ -3538,6 +3538,53 @@ button:hover {
 }
 .btn-match-quotes:hover { background: #dcfce7; border-color: #4ade80; }
 
+.btn-edit-config {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: #faf5ff;
+    color: #7c3aed;
+    border: 1px solid #c4b5fd;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+}
+.btn-edit-config:hover { background: #ede9fe; border-color: #a78bfa; }
+
+/* Edit Config Modal */
+.edit-config-name-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 0 16px 0;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 12px;
+}
+.edit-config-name-row .field-label { white-space: nowrap; font-weight: 600; font-size: 0.85rem; color: #475569; }
+.edit-config-name-row .field-input  { flex: 1; }
+.edit-config-table-wrap { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+.edit-config-table .edit-comp-pn    { width: 110px; font-family: monospace; font-size: 0.82rem; }
+.edit-config-table .edit-comp-specs { width: 100%; min-width: 160px; }
+.edit-config-table .edit-comp-qty   { width: 52px; text-align: center; }
+.edit-config-table select, .edit-config-table input[type="text"],
+.edit-config-table input[type="number"] {
+    padding: 4px 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    font-size: 0.82rem;
+    font-family: inherit;
+    background: #fff;
+}
+.edit-config-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 14px;
+    border-top: 1px solid #e2e8f0;
+    margin-top: 12px;
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    CONFIG MATCHING — results area below component table
    ══════════════════════════════════════════════════════════════════════════ */

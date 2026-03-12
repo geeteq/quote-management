@@ -301,6 +301,41 @@
         </div>
     </div>
 
+    <!-- Edit Config Modal -->
+    <div id="editConfigModal" class="modal" style="display:none;">
+        <div class="modal-content modal-wide">
+            <div class="modal-header">
+                <h2>Edit Config</h2>
+                <button class="modal-close" onclick="closeEditConfig()">&times;</button>
+            </div>
+            <div class="edit-config-name-row">
+                <label class="field-label">Config Name</label>
+                <input type="text" id="editConfigName" class="field-input" placeholder="Config name">
+            </div>
+            <div class="edit-config-table-wrap">
+                <table class="components-table edit-config-table">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Part #</th>
+                            <th>Description / Specs</th>
+                            <th class="qty-col">Qty</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="editConfigBody"></tbody>
+                </table>
+            </div>
+            <div class="edit-config-footer">
+                <button class="btn-ghost btn-sm" onclick="addEditRow()">+ Add Row</button>
+                <div class="modal-actions">
+                    <button class="btn-secondary" onclick="closeEditConfig()">Cancel</button>
+                    <button class="btn-primary" onclick="saveEditConfig()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const BASE = document.querySelector('base').getAttribute('href').replace(/\/$/, '');
         let navigationData = [];
@@ -308,7 +343,7 @@
         const selectedQuotes = new Set();
         let configModalProjectId = null;
         let manufacturers = [];
-        let learnedComponents = [];
+        let _editConfigId = null;
 
         function toggleQuoteSelection(id) {
             if (selectedQuotes.has(id)) {
@@ -663,10 +698,86 @@
             }
         }
 
+        // ── Edit Config ───────────────────────────────────────────────────────
+
+        const _COMP_TYPES = ['CPU','Memory','Disk','Storage Controller',
+                             'Network Card','Power Supply','GPU','Additional Hardware'];
+
+        function openEditConfig(configId) {
+            const cfg = _configCache[configId];
+            if (!cfg) return;
+            _editConfigId = configId;
+            document.getElementById('editConfigName').value = cfg.config_name;
+            const tbody = document.getElementById('editConfigBody');
+            tbody.innerHTML = '';
+            cfg.components.forEach(c => tbody.appendChild(_buildEditRow(c)));
+            document.getElementById('editConfigModal').style.display = 'flex';
+        }
+
+        function closeEditConfig() {
+            document.getElementById('editConfigModal').style.display = 'none';
+            _editConfigId = null;
+        }
+
+        function _buildEditRow(comp) {
+            const tr = document.createElement('tr');
+            const typeOpts = _COMP_TYPES.map(t =>
+                `<option value="${t}"${t === comp.component_type ? ' selected' : ''}>${t}</option>`
+            ).join('');
+            tr.innerHTML = `
+                <td><select class="edit-comp-type filter-select">${typeOpts}</select></td>
+                <td><input class="edit-comp-pn mono" type="text" value="${_esc(comp.part_number)}" placeholder="Part #"></td>
+                <td><input class="edit-comp-specs" type="text" value="${_esc(comp.specs)}" placeholder="Description"></td>
+                <td><input class="edit-comp-qty" type="number" value="${comp.quantity || 1}" min="1" max="255"></td>
+                <td><button class="btn-remove-comp" onclick="this.closest('tr').remove()" title="Remove">&times;</button></td>
+            `;
+            return tr;
+        }
+
+        function _esc(v) {
+            return (v || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+        }
+
+        function addEditRow() {
+            document.getElementById('editConfigBody').appendChild(
+                _buildEditRow({component_type: 'CPU', part_number: '', specs: '', quantity: 1})
+            );
+        }
+
+        async function saveEditConfig() {
+            const name = document.getElementById('editConfigName').value.trim();
+            if (!name) { alert('Config name is required.'); return; }
+            const components = [];
+            document.querySelectorAll('#editConfigBody tr').forEach(tr => {
+                const type  = tr.querySelector('.edit-comp-type').value;
+                const pn    = tr.querySelector('.edit-comp-pn').value.trim();
+                const specs = tr.querySelector('.edit-comp-specs').value.trim();
+                const qty   = Math.min(255, Math.max(1, parseInt(tr.querySelector('.edit-comp-qty').value) || 1));
+                if (type && (pn || specs)) {
+                    components.push({component_type: type, part_number: pn || null, specs: specs || null, quantity: qty});
+                }
+            });
+            const resp = await fetch(`${BASE}/api/configs/${_editConfigId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({config_name: name, components}),
+            });
+            if (resp.ok) {
+                closeEditConfig();
+                refreshCurrentView();
+            } else {
+                const err = await resp.json().catch(() => ({}));
+                alert('Error: ' + (err.error || 'Unknown error'));
+            }
+        }
+
         async function deleteConfig(configId) {
             if (!confirm('Delete this config and all its components?')) return;
             const resp = await fetch(`${BASE}/api/configs/${configId}`, {method: 'DELETE'});
-            if (resp.ok) refreshCurrentView();
+            if (resp.ok) {
+                delete _configCache[configId];
+                refreshCurrentView();
+            }
         }
 
         async function archiveQuote(id) {
@@ -812,6 +923,7 @@
                         <span class="config-name">${c.config_name}</span>
                         <div class="config-card-actions">
                             <button class="btn-export-csv" onclick="downloadConfigCSV(${c.id})" title="Download config as CSV">&#8595; CSV</button>
+                            <button class="btn-edit-config" onclick="openEditConfig(${c.id})" title="Edit config">&#9998; Edit</button>
                             <button class="btn-match-quotes" onclick="matchConfig(${c.id})" title="Score all project quotes against this config">&#9878; Match Quotes</button>
                             <button class="btn-delete-config" onclick="deleteConfig(${c.id})" title="Delete config">&times;</button>
                         </div>
@@ -929,8 +1041,11 @@
             let components = {};
             try {
                 const r = await fetch(`${BASE}/api/servers/${server.id}/components`);
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 components = await r.json();
-            } catch {}
+            } catch (err) {
+                _showToast(`Could not load components for ${server.model_name}: ${err.message}`, 'warn');
+            }
             _lockedServer = { id: server.id, manufacturer_name: server.manufacturer_name, components };
             const banner = document.getElementById('serverLockBanner');
             const label  = document.getElementById('serverLockLabel');
