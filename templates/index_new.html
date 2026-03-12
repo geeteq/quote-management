@@ -904,20 +904,32 @@
             filterNicSelects(null); // restore all options
         }
 
+        // Store original NIC options once so we can restore them on unlock
+        const _nicOriginalOptions = {};
+
         function filterNicSelects(pool) {
             ['nicProdSelect', 'nicMgmtSelect'].forEach(selId => {
                 const sel = document.getElementById(selId);
                 if (!sel) return;
-                Array.from(sel.options).forEach(opt => {
-                    if (!opt.value) return; // keep placeholder
-                    if (pool === null) {
-                        opt.hidden = false; // unlock: show all
-                    } else {
-                        opt.hidden = !pool.some(c => c.part_number === opt.value);
-                    }
-                });
-                // Reset selection if current value is now hidden
-                if (sel.selectedOptions[0] && sel.selectedOptions[0].hidden) sel.value = '';
+
+                // Save originals on first call
+                if (!_nicOriginalOptions[selId]) {
+                    _nicOriginalOptions[selId] = Array.from(sel.options).map(o => o.cloneNode(true));
+                }
+
+                if (pool === null) {
+                    // Restore all original options
+                    sel.innerHTML = '';
+                    _nicOriginalOptions[selId].forEach(o => sel.appendChild(o.cloneNode(true)));
+                } else {
+                    // Rebuild select with only matching options + placeholder
+                    const pns = new Set(pool.map(c => c.part_number).filter(Boolean));
+                    const kept = _nicOriginalOptions[selId].filter(o => !o.value || pns.has(o.value));
+                    sel.innerHTML = '';
+                    kept.forEach(o => sel.appendChild(o.cloneNode(true)));
+                    // Reset to placeholder if previous selection is no longer available
+                    if (!pns.has(sel.value)) sel.value = '';
+                }
             });
         }
 
