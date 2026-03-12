@@ -966,9 +966,10 @@
             const pool = _lockedServer.components[componentType] || [];
             const lq   = q.toLowerCase();
             const results = pool
-                .filter(c => (c.description || '').toLowerCase().includes(lq)
-                          || (c.part_number  || '').toLowerCase().includes(lq)
-                          || (c.manufacturer || '').toLowerCase().includes(lq))
+                .filter(c => (c.description     || '').toLowerCase().includes(lq)
+                          || (c.part_number     || '').toLowerCase().includes(lq)
+                          || (c.manufacturer    || '').toLowerCase().includes(lq)
+                          || (c.component_role  || '').toLowerCase().includes(lq))
                 .slice(0, 15)
                 .map(c => ({
                     component_type: componentType,
@@ -981,6 +982,8 @@
         }
 
         async function fetchAcResults(input, dropdown, componentType, q) {
+            // Guard: if server was locked while this timer was queued, use cache instead
+            if (_lockedServer) { searchCachedComponents(input, dropdown, componentType, q); return; }
             let results;
             try {
                 const url = `${BASE}/api/components/learned?type=${encodeURIComponent(componentType)}&q=${encodeURIComponent(q)}`;
