@@ -480,24 +480,27 @@
                     quantity:       qty,
                 });
             });
+            // Capture warning message before submit (modal closes on success)
+            const warnMsg = freeTextLabels.length
+                ? `${freeTextLabels.join(', ')} saved as free text — no part number matched. Use the dropdown for full tracking.`
+                : null;
             await _submitConfig(name, components);
-            if (freeTextLabels.length) {
-                _showConfigWarning(`Saved, but ${freeTextLabels.join(', ')} saved as free text with no part number — select from dropdown for full tracking.`);
-            }
+            // _submitConfig closes the modal on success; show toast in page body instead
+            if (warnMsg) _showToast(warnMsg, 'warn');
         }
 
-        function _showConfigWarning(msg) {
-            let el = document.getElementById('configSaveWarning');
+        function _showToast(msg, type) {
+            let el = document.getElementById('pageToast');
             if (!el) {
                 el = document.createElement('div');
-                el.id = 'configSaveWarning';
-                el.className = 'config-save-warning';
-                const modal = document.querySelector('#addConfigModal .modal-content');
-                if (modal) modal.prepend(el);
+                el.id = 'pageToast';
+                document.body.appendChild(el);
             }
+            el.className = 'page-toast page-toast-' + (type || 'info');
             el.textContent = msg;
             el.style.display = 'block';
-            setTimeout(() => { el.style.display = 'none'; }, 6000);
+            clearTimeout(el._timer);
+            el._timer = setTimeout(() => { el.style.display = 'none'; }, 7000);
         }
 
         // ── Basic NIC rows ────────────────────────────────────────────────────

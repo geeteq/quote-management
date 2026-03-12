@@ -3261,15 +3261,31 @@ button:hover {
 }
 .server-lock-clear:hover { background: #dbeafe; }
 
-.config-save-warning {
+.page-toast {
     display: none;
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000;
+    max-width: 520px;
+    width: calc(100% - 48px);
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 0.84rem;
+    font-weight: 500;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    pointer-events: none;
+}
+.page-toast-warn {
     background: #fffbeb;
     border: 1px solid #fcd34d;
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-size: 0.82rem;
     color: #92400e;
-    margin-bottom: 12px;
+}
+.page-toast-info {
+    background: #eff6ff;
+    border: 1px solid #93c5fd;
+    color: #1e40af;
 }
 
 /* ── Component autocomplete ─────────────────────────────────────────────── */
