@@ -3261,6 +3261,17 @@ button:hover {
 }
 .server-lock-clear:hover { background: #dbeafe; }
 
+.config-save-warning {
+    display: none;
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.82rem;
+    color: #92400e;
+    margin-bottom: 12px;
+}
+
 /* ── Component autocomplete ─────────────────────────────────────────────── */
 .comp-ac-wrap {
     position: relative;

@@ -432,6 +432,7 @@
             const name = document.getElementById('basicConfigName').value.trim();
             if (!name) { alert('Config name is required.'); return; }
             const components = [];
+            const freeTextLabels = [];   // components saved without a resolved part number
             const clamp = id => Math.min(255, Math.max(1, parseInt(document.getElementById(id).value) || 1));
             const add = (type, valId, qtyId, modelOverride) => {
                 const inp = document.getElementById(valId);
@@ -451,6 +452,8 @@
                     if (resolved.part_number)  comp.part_number  = resolved.part_number;
                     if (resolved.model)        comp.model        = resolved.model;
                     if (resolved.manufacturer) comp.manufacturer = resolved.manufacturer;
+                } else {
+                    freeTextLabels.push(modelOverride || type);
                 }
                 // modelOverride labels role (Boot Disk / Data Disk) but doesn't suppress part_number
                 if (modelOverride) comp.model = modelOverride;
@@ -478,6 +481,23 @@
                 });
             });
             await _submitConfig(name, components);
+            if (freeTextLabels.length) {
+                _showConfigWarning(`Saved, but ${freeTextLabels.join(', ')} saved as free text with no part number — select from dropdown for full tracking.`);
+            }
+        }
+
+        function _showConfigWarning(msg) {
+            let el = document.getElementById('configSaveWarning');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'configSaveWarning';
+                el.className = 'config-save-warning';
+                const modal = document.querySelector('#addConfigModal .modal-content');
+                if (modal) modal.prepend(el);
+            }
+            el.textContent = msg;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 6000);
         }
 
         // ── Basic NIC rows ────────────────────────────────────────────────────
