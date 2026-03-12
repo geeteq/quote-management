@@ -38,7 +38,6 @@
                     <tr>
                         <th>Part #</th>
                         <th>Description</th>
-                        <th>Role</th>
                         <th>Standard</th>
                         <th>Optional</th>
                     </tr>
@@ -48,7 +47,6 @@
                     <tr>
                         <td class="mono" style="white-space:nowrap;">{{ c.part_number }}</td>
                         <td class="sc-desc">{{ c.description or '—' }}</td>
-                        <td style="font-size:0.78rem;color:#64748b;">{{ c.component_role or '—' }}</td>
                         <td class="match-bool {% if c.is_standard %}match-yes{% else %}match-no{% endif %}">
                             {{ '✓' if c.is_standard else '✗' }}
                         </td>

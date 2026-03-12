@@ -180,28 +180,55 @@
             <div id="configBasicForm" style="display:none;">
                 <div class="form-group">
                     <label>Config Name <span class="required">*</span></label>
-                    <input type="text" id="basicConfigName" placeholder="e.g., Standard 2-Socket Server">
+                    <div class="comp-ac-wrap">
+                        <input type="text" id="basicConfigName" placeholder="e.g., Standard 2-Socket Server or search a server model…" autocomplete="off">
+                        <div class="comp-ac-dropdown" id="basicConfigName-ac"></div>
+                    </div>
+                </div>
+                <div class="server-lock-banner" id="serverLockBanner" style="display:none;">
+                    <span class="server-lock-icon">&#9729;</span>
+                    <span id="serverLockLabel"></span>
+                    <button class="server-lock-clear" onclick="clearServerLock()" title="Remove server restriction">&times; Clear</button>
                 </div>
                 <div class="basic-config-grid">
                     <div class="form-group basic-comp-row">
                         <label>CPU</label>
                         <div class="basic-comp-inputs">
-                            <input type="text" id="basicCPU" placeholder="e.g., Intel Xeon Gold 6338 32-Core">
+                            <div class="comp-ac-wrap">
+                                <input type="text" id="basicCPU" placeholder="e.g., Intel Xeon Gold 6338 32-Core" autocomplete="off">
+                                <div class="comp-ac-dropdown" id="basicCPU-ac"></div>
+                            </div>
                             <input type="number" id="basicCPUQty" class="comp-qty" value="2" min="1" max="255" title="Quantity">
                         </div>
                     </div>
                     <div class="form-group basic-comp-row">
                         <label>Memory</label>
                         <div class="basic-comp-inputs">
-                            <input type="text" id="basicMemory" placeholder="e.g., 512GB DDR5 4800MHz">
+                            <div class="comp-ac-wrap">
+                                <input type="text" id="basicMemory" placeholder="e.g., 512GB DDR5 4800MHz" autocomplete="off">
+                                <div class="comp-ac-dropdown" id="basicMemory-ac"></div>
+                            </div>
                             <input type="number" id="basicMemoryQty" class="comp-qty" value="1" min="1" max="255" title="Quantity">
                         </div>
                     </div>
                     <div class="form-group basic-comp-row">
-                        <label>Disk</label>
+                        <label>Boot Disk</label>
                         <div class="basic-comp-inputs">
-                            <input type="text" id="basicDisk" placeholder="e.g., 4x 3.84TB NVMe SSD">
-                            <input type="number" id="basicDiskQty" class="comp-qty" value="1" min="1" max="255" title="Quantity">
+                            <div class="comp-ac-wrap">
+                                <input type="text" id="basicBootDisk" placeholder="e.g., 2x 480GB SATA SSD" autocomplete="off">
+                                <div class="comp-ac-dropdown" id="basicBootDisk-ac"></div>
+                            </div>
+                            <input type="number" id="basicBootDiskQty" class="comp-qty" value="2" min="1" max="255" title="Quantity">
+                        </div>
+                    </div>
+                    <div class="form-group basic-comp-row">
+                        <label>Data Disk</label>
+                        <div class="basic-comp-inputs">
+                            <div class="comp-ac-wrap">
+                                <input type="text" id="basicDataDisk" placeholder="e.g., 4x 3.84TB NVMe SSD" autocomplete="off">
+                                <div class="comp-ac-dropdown" id="basicDataDisk-ac"></div>
+                            </div>
+                            <input type="number" id="basicDataDiskQty" class="comp-qty" value="1" min="1" max="255" title="Quantity">
                         </div>
                     </div>
                     <div class="form-group basic-comp-row">
@@ -367,22 +394,28 @@
 
         function closeConfigModal() {
             document.getElementById('addConfigModal').style.display = 'none';
+            clearServerLock();
         }
 
         function setConfigMode(mode) {
             document.getElementById('configModePicker').style.display  = mode ? 'none' : 'flex';
             document.getElementById('configBasicForm').style.display   = mode === 'basic'  ? 'block' : 'none';
             document.getElementById('configVendorForm').style.display  = mode === 'vendor' ? 'block' : 'none';
+            if (!mode) clearServerLock();
             if (mode === 'basic') {
-                document.getElementById('basicConfigName').value = '';
-                document.getElementById('basicCPU').value        = '';
-                document.getElementById('basicMemory').value     = '';
-                document.getElementById('basicDisk').value       = '';
-                document.getElementById('basicPSU').value        = '';
-                document.getElementById('nicProdSelect').value   = '';
-                document.getElementById('nicProdQty').value      = '1';
-                document.getElementById('nicMgmtSelect').value   = '';
-                document.getElementById('nicMgmtQty').value      = '1';
+                document.getElementById('basicConfigName').value  = '';
+                const cpuInput = document.getElementById('basicCPU');
+                cpuInput.value = '';
+                cpuInput._selectedComp = null;
+                document.getElementById('basicMemory').value      = '';
+                document.getElementById('basicBootDisk').value    = '';
+                document.getElementById('basicDataDisk').value    = '';
+                document.getElementById('basicPSU').value         = '';
+                document.getElementById('nicProdSelect').value    = '';
+                document.getElementById('nicProdQty').value       = '1';
+                document.getElementById('nicMgmtSelect').value    = '';
+                document.getElementById('nicMgmtQty').value       = '1';
+                ensureAcInit();
             }
             if (mode === 'vendor') {
                 document.getElementById('vendorConfigName').value = '';
@@ -400,15 +433,26 @@
             if (!name) { alert('Config name is required.'); return; }
             const components = [];
             const clamp = id => Math.min(255, Math.max(1, parseInt(document.getElementById(id).value) || 1));
-            const add = (type, valId, qtyId) => {
-                const val = document.getElementById(valId).value.trim();
+            const add = (type, valId, qtyId, modelOverride) => {
+                const inp = document.getElementById(valId);
+                const val = inp.value.trim();
                 if (!val) return;
-                components.push({component_type: type, specs: val, quantity: clamp(qtyId)});
+                const comp = {component_type: type, specs: val, quantity: clamp(qtyId)};
+                if (modelOverride) {
+                    comp.model = modelOverride;
+                } else if (inp._selectedComp) {
+                    const sel = inp._selectedComp;
+                    if (sel.part_number)  comp.part_number  = sel.part_number;
+                    if (sel.model)        comp.model        = sel.model;
+                    if (sel.manufacturer) comp.manufacturer = sel.manufacturer;
+                }
+                components.push(comp);
             };
-            add('CPU',          'basicCPU',    'basicCPUQty');
-            add('Memory',       'basicMemory', 'basicMemoryQty');
-            add('Disk',         'basicDisk',   'basicDiskQty');
-            add('Power Supply', 'basicPSU',    'basicPSUQty');
+            add('CPU',          'basicCPU',       'basicCPUQty');
+            add('Memory',       'basicMemory',    'basicMemoryQty');
+            add('Disk',         'basicBootDisk',  'basicBootDiskQty', 'Boot Disk');
+            add('Disk',         'basicDataDisk',  'basicDataDiskQty', 'Data Disk');
+            add('Power Supply', 'basicPSU',       'basicPSUQty');
             // NIC rows (fixed Production + Management)
             [['Production NIC', 'nicProdSelect', 'nicProdQty'],
              ['Management NIC',  'nicMgmtSelect', 'nicMgmtQty']].forEach(([role, selId, qtyId]) => {
@@ -713,13 +757,17 @@
             `;
         }
 
+        const _configCache = {};
+
         function renderConfigs(configs) {
             if (!configs.length) return '<p class="empty-section-hint">No base configs yet. Click "+ Add Config" to create one.</p>';
+            configs.forEach(c => { _configCache[c.id] = c; });
             return `<div class="configs-grid">${configs.map(c => `
                 <div class="config-card" id="config-card-${c.id}">
                     <div class="config-card-header">
                         <span class="config-name">${c.config_name}</span>
                         <div class="config-card-actions">
+                            <button class="btn-export-csv" onclick="downloadConfigCSV(${c.id})" title="Download config as CSV">&#8595; CSV</button>
                             <button class="btn-match-quotes" onclick="matchConfig(${c.id})" title="Score all project quotes against this config">&#9878; Match Quotes</button>
                             <button class="btn-delete-config" onclick="deleteConfig(${c.id})" title="Delete config">&times;</button>
                         </div>
@@ -741,6 +789,190 @@
                     <div class="match-results-area" id="match-${c.id}"></div>
                 </div>`).join('')}
             </div>`;
+        }
+
+        // ── Component + Server autocomplete ──────────────────────────────────
+
+        let _acTimer    = null;
+        let _lockedServer = null;  // { id, manufacturer_name, components: {CPU:[...], ...} }
+
+        function positionDropdown(input, dropdown) {
+            const rect = input.getBoundingClientRect();
+            dropdown.style.left  = rect.left + 'px';
+            dropdown.style.width = rect.width + 'px';
+            const spaceBelow = window.innerHeight - rect.bottom;
+            if (spaceBelow >= 200 || spaceBelow >= rect.top) {
+                dropdown.style.top    = (rect.bottom + 3) + 'px';
+                dropdown.style.bottom = 'auto';
+            } else {
+                dropdown.style.top    = 'auto';
+                dropdown.style.bottom = (window.innerHeight - rect.top + 3) + 'px';
+            }
+        }
+
+        function initCompAutocomplete(inputId, componentType) {
+            const input    = document.getElementById(inputId);
+            const dropdown = document.getElementById(inputId + '-ac');
+            if (!input || !dropdown) return;
+
+            input.addEventListener('input', () => {
+                input._selectedComp = null;
+                clearTimeout(_acTimer);
+                const q = input.value.trim();
+                if (q.length < 2) { dropdown.innerHTML = ''; dropdown.style.display = 'none'; return; }
+                _acTimer = setTimeout(() => fetchAcResults(input, dropdown, componentType, q), 200);
+            });
+
+            input.addEventListener('blur',  () => { setTimeout(() => { dropdown.style.display = 'none'; }, 180); });
+            input.addEventListener('focus', () => { if (dropdown.children.length) { positionDropdown(input, dropdown); dropdown.style.display = 'block'; } });
+        }
+
+        function initServerAutocomplete() {
+            const input    = document.getElementById('basicConfigName');
+            const dropdown = document.getElementById('basicConfigName-ac');
+            if (!input || !dropdown) return;
+
+            input.addEventListener('input', () => {
+                clearTimeout(_acTimer);
+                const q = input.value.trim();
+                if (q.length < 2) { dropdown.innerHTML = ''; dropdown.style.display = 'none'; return; }
+                _acTimer = setTimeout(() => fetchServerResults(input, dropdown, q), 200);
+            });
+
+            input.addEventListener('blur',  () => { setTimeout(() => { dropdown.style.display = 'none'; }, 180); });
+            input.addEventListener('focus', () => { if (dropdown.children.length) { positionDropdown(input, dropdown); dropdown.style.display = 'block'; } });
+        }
+
+        async function fetchServerResults(input, dropdown, q) {
+            let servers;
+            try {
+                const r = await fetch(`${BASE}/api/admin/servers?q=${encodeURIComponent(q)}`);
+                servers = await r.json();
+            } catch { return; }
+            dropdown.innerHTML = '';
+            if (!servers.length) { dropdown.style.display = 'none'; return; }
+            servers.forEach(s => {
+                const item  = document.createElement('div');
+                item.className = 'comp-ac-item';
+                const label = s.model_name;
+                const sub   = [s.manufacturer_name, s.form_factor, s.generation,
+                                s.component_count ? `${s.component_count} components` : null]
+                              .filter(Boolean).join(' · ');
+                item.innerHTML = `<span class="comp-ac-label">${label}</span>`
+                               + (sub ? `<span class="comp-ac-sub">${sub}</span>` : '');
+                item.addEventListener('mousedown', () => selectServer(s, input, dropdown));
+                dropdown.appendChild(item);
+            });
+            positionDropdown(input, dropdown);
+            dropdown.style.display = 'block';
+        }
+
+        async function selectServer(server, input, dropdown) {
+            input.value = server.model_name;
+            dropdown.style.display = 'none';
+            // Fetch server components once and lock
+            let components = {};
+            try {
+                const r = await fetch(`${BASE}/api/servers/${server.id}/components`);
+                components = await r.json();
+            } catch {}
+            _lockedServer = { id: server.id, manufacturer_name: server.manufacturer_name, components };
+            const banner = document.getElementById('serverLockBanner');
+            const label  = document.getElementById('serverLockLabel');
+            label.textContent = `Components restricted to ${server.manufacturer_name || ''} ${server.model_name}`.trim();
+            banner.style.display = 'flex';
+        }
+
+        function clearServerLock() {
+            _lockedServer = null;
+            document.getElementById('serverLockBanner').style.display = 'none';
+            document.getElementById('serverLockLabel').textContent = '';
+        }
+
+        async function fetchAcResults(input, dropdown, componentType, q) {
+            let results;
+
+            if (_lockedServer) {
+                // Restrict to this server's components — filter client-side
+                const pool = _lockedServer.components[componentType] || [];
+                const lq   = q.toLowerCase();
+                results = pool
+                    .filter(c => (c.description || '').toLowerCase().includes(lq)
+                              || (c.part_number  || '').toLowerCase().includes(lq)
+                              || (c.manufacturer || '').toLowerCase().includes(lq))
+                    .slice(0, 15)
+                    .map(c => ({
+                        component_type: componentType,
+                        manufacturer:   c.manufacturer,
+                        part_number:    c.part_number,
+                        model:          c.part_number,
+                        description:    c.description,
+                    }));
+            } else {
+                // No server lock — search full catalog
+                try {
+                    const url = `${BASE}/api/components/learned?type=${encodeURIComponent(componentType)}&q=${encodeURIComponent(q)}`;
+                    const r   = await fetch(url);
+                    results   = await r.json();
+                } catch { return; }
+            }
+
+            dropdown.innerHTML = '';
+            if (!results.length) { dropdown.style.display = 'none'; return; }
+            results.forEach(comp => {
+                const item  = document.createElement('div');
+                item.className = 'comp-ac-item';
+                const label = comp.description || comp.model || comp.part_number || '';
+                const sub   = [comp.manufacturer, comp.part_number].filter(Boolean).join(' · ');
+                item.innerHTML = `<span class="comp-ac-label">${label}</span>`
+                               + (sub ? `<span class="comp-ac-sub">${sub}</span>` : '');
+                item.addEventListener('mousedown', () => {
+                    input.value = label;
+                    input._selectedComp = comp;
+                    dropdown.style.display = 'none';
+                });
+                dropdown.appendChild(item);
+            });
+            positionDropdown(input, dropdown);
+            dropdown.style.display = 'block';
+        }
+
+        // Initialise once when basic form is shown
+        let _acInitDone = false;
+        function ensureAcInit() {
+            if (_acInitDone) return;
+            initServerAutocomplete();
+            initCompAutocomplete('basicCPU',      'CPU');
+            initCompAutocomplete('basicMemory',   'Memory');
+            initCompAutocomplete('basicBootDisk', 'Disk');
+            initCompAutocomplete('basicDataDisk', 'Disk');
+            _acInitDone = true;
+        }
+
+        function downloadConfigCSV(configId) {
+            const cfg = _configCache[configId];
+            if (!cfg) return;
+            const configName = cfg.config_name;
+            const components = cfg.components;
+            const escape = v => {
+                const s = (v == null || v === '—') ? '' : String(v);
+                return s.includes(',') || s.includes('"') || s.includes('\n')
+                    ? '"' + s.replace(/"/g, '""') + '"'
+                    : s;
+            };
+            const headers = ['Config Name', 'Type', 'Manufacturer', 'Part Number', 'Model', 'Specs', 'Quantity'];
+            const rows = components.map(c => [
+                configName, c.component_type, c.manufacturer_name, c.part_number,
+                c.model, c.specs, c.quantity ?? 1
+            ].map(escape).join(','));
+            const csv = [headers.join(','), ...rows].join('\r\n');
+            const blob = new Blob([csv], {type: 'text/csv'});
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = `${configName.replace(/[^a-z0-9_\-]/gi, '_')}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
         }
 
         async function matchConfig(configId) {
