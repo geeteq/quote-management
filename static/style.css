@@ -3282,8 +3282,7 @@ button:hover {
 .toast-close {
     position: absolute;
     right: 14px;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 10px;
     font-size: 1rem;
     opacity: 0.6;
     line-height: 1;
