@@ -797,17 +797,23 @@
         let _lockedServer = null;  // { id, manufacturer_name, components: {CPU:[...], ...} }
 
         function positionDropdown(input, dropdown) {
-            const rect = input.getBoundingClientRect();
+            const rect      = input.getBoundingClientRect();
+            const needed    = dropdown.scrollHeight || 240;
+            const spaceBelow = window.innerHeight - rect.bottom;
             dropdown.style.left  = rect.left + 'px';
             dropdown.style.width = rect.width + 'px';
-            const spaceBelow = window.innerHeight - rect.bottom;
-            if (spaceBelow >= 200 || spaceBelow >= rect.top) {
+            if (spaceBelow >= needed || spaceBelow >= rect.top) {
                 dropdown.style.top    = (rect.bottom + 3) + 'px';
                 dropdown.style.bottom = 'auto';
             } else {
                 dropdown.style.top    = 'auto';
                 dropdown.style.bottom = (window.innerHeight - rect.top + 3) + 'px';
             }
+        }
+
+        // Close any open dropdown when modal scrolls (fixed-position dropdowns go stale)
+        function _closeAllDropdowns() {
+            document.querySelectorAll('.comp-ac-dropdown').forEach(d => { d.style.display = 'none'; });
         }
 
         function initCompAutocomplete(inputId, componentType) {
@@ -946,6 +952,9 @@
             initCompAutocomplete('basicMemory',   'Memory');
             initCompAutocomplete('basicBootDisk', 'Disk');
             initCompAutocomplete('basicDataDisk', 'Disk');
+            // Close dropdowns if modal scrolls (fixed-position items go stale)
+            const modalContent = document.querySelector('#addConfigModal .modal-content');
+            if (modalContent) modalContent.addEventListener('scroll', _closeAllDropdowns, { passive: true });
             _acInitDone = true;
         }
 
