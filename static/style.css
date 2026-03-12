@@ -3270,12 +3270,23 @@ button:hover {
     z-index: 10000;
     max-width: 520px;
     width: calc(100% - 48px);
-    padding: 10px 16px;
+    padding: 10px 40px 10px 16px;
     border-radius: 8px;
     font-size: 0.84rem;
     font-weight: 500;
     box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-    pointer-events: none;
+    cursor: pointer;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+.page-toast::after {
+    content: '×';
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1rem;
+    opacity: 0.6;
 }
 .page-toast-warn {
     background: #fffbeb;

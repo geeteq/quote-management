@@ -484,9 +484,9 @@
             const warnMsg = freeTextLabels.length
                 ? `${freeTextLabels.join(', ')} saved as free text — no part number matched. Use the dropdown for full tracking.`
                 : null;
-            await _submitConfig(name, components);
-            // _submitConfig closes the modal on success; show toast in page body instead
-            if (warnMsg) _showToast(warnMsg, 'warn');
+            const saved = await _submitConfig(name, components);
+            // Only show warning if save actually succeeded (modal already closed)
+            if (saved && warnMsg) _showToast(warnMsg, 'warn');
         }
 
         function _showToast(msg, type) {
@@ -494,6 +494,7 @@
             if (!el) {
                 el = document.createElement('div');
                 el.id = 'pageToast';
+                el.addEventListener('click', () => { clearTimeout(el._timer); el.style.display = 'none'; });
                 document.body.appendChild(el);
             }
             el.className = 'page-toast page-toast-' + (type || 'info');
@@ -651,9 +652,11 @@
             if (resp.ok) {
                 closeConfigModal();
                 refreshCurrentView();
+                return true;
             } else {
                 const err = await resp.json();
                 alert('Error: ' + (err.error || 'Unknown error'));
+                return false;
             }
         }
 
