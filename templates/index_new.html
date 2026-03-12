@@ -438,11 +438,19 @@
                 const val = inp.value.trim();
                 if (!val) return;
                 const comp = {component_type: type, specs: val, quantity: clamp(qtyId)};
-                if (inp._selectedComp) {
-                    const sel = inp._selectedComp;
-                    if (sel.part_number)  comp.part_number  = sel.part_number;
-                    if (sel.model)        comp.model        = sel.model;
-                    if (sel.manufacturer) comp.manufacturer = sel.manufacturer;
+                // Use _selectedComp if available; otherwise try exact-match in locked server cache
+                let resolved = inp._selectedComp;
+                if (!resolved && _lockedServer) {
+                    const lval = val.toLowerCase();
+                    resolved = (_lockedServer.components[type] || []).find(c =>
+                        (c.part_number  || '').toLowerCase() === lval ||
+                        (c.description  || '').toLowerCase() === lval
+                    ) || null;
+                }
+                if (resolved) {
+                    if (resolved.part_number)  comp.part_number  = resolved.part_number;
+                    if (resolved.model)        comp.model        = resolved.model;
+                    if (resolved.manufacturer) comp.manufacturer = resolved.manufacturer;
                 }
                 // modelOverride labels role (Boot Disk / Data Disk) but doesn't suppress part_number
                 if (modelOverride) comp.model = modelOverride;

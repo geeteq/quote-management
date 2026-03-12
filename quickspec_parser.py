@@ -341,8 +341,9 @@ class QuickSpecParser:
     ]
 
     # Descriptions that indicate a garbage/placeholder row — skip entirely
+    # Note: sku\s+number has no end-anchor — catches "SKU Number P65391-B21 P65392-B21" cross-refs
     _DESC_GARBAGE_RE = re.compile(
-        r'(?i)^(sku\s+number|system\s+config(uration)?|tbd|n/?a|see\s+note|contact\s+hpe)$'
+        r'(?i)^(sku\s+number\b|system\s+config(uration)?$|tbd$|n/?a$|see\s+note$|contact\s+hpe$)'
     )
 
     # Lines that are cross-reference/requirement notes even if they contain PNs
@@ -605,7 +606,7 @@ class QuickSpecParser:
     @staticmethod
     def _extract_description(line: str, part_number: str, lines: List[str], idx: int) -> str:
         desc = line.replace(part_number, '').strip()
-        desc = re.sub(r'^[\s\-\|:•·]+', '', desc).strip()
+        desc = re.sub(r'^[\s\-\|:•·,]+', '', desc).strip()
         if len(desc) < 5 and idx + 1 < len(lines):
             next_line = lines[idx + 1].strip()
             if next_line and not re.search(r'\b\d{3}-[A-Z]{4}|[A-Z]\d{5}-[A-Z]\d{2}\b', next_line):
