@@ -833,7 +833,12 @@
                 clearTimeout(_acTimer);
                 const q = input.value.trim();
                 if (q.length < 2) { dropdown.innerHTML = ''; dropdown.style.display = 'none'; return; }
-                _acTimer = setTimeout(() => fetchAcResults(input, dropdown, componentType, q), 200);
+                if (_lockedServer) {
+                    // Cache is warm — search synchronously, no network, no debounce
+                    searchCachedComponents(input, dropdown, componentType, q);
+                } else {
+                    _acTimer = setTimeout(() => fetchAcResults(input, dropdown, componentType, q), 200);
+                }
             });
 
             input.addEventListener('blur',  () => { setTimeout(() => { dropdown.style.display = 'none'; }, 180); });
@@ -898,10 +903,12 @@
         }
 
         function clearServerLock() {
+            filterNicSelects(null); // restore all NIC options before clearing cache
             _lockedServer = null;
+            // Clear NIC option cache so next server lock re-saves from current DOM state
+            Object.keys(_nicOriginalOptions).forEach(k => delete _nicOriginalOptions[k]);
             document.getElementById('serverLockBanner').style.display = 'none';
             document.getElementById('serverLockLabel').textContent = '';
-            filterNicSelects(null); // restore all options
         }
 
         // Store original NIC options once so we can restore them on unlock
@@ -933,34 +940,7 @@
             });
         }
 
-        async function fetchAcResults(input, dropdown, componentType, q) {
-            let results;
-
-            if (_lockedServer) {
-                // Restrict to this server's components — filter client-side
-                const pool = _lockedServer.components[componentType] || [];
-                const lq   = q.toLowerCase();
-                results = pool
-                    .filter(c => (c.description || '').toLowerCase().includes(lq)
-                              || (c.part_number  || '').toLowerCase().includes(lq)
-                              || (c.manufacturer || '').toLowerCase().includes(lq))
-                    .slice(0, 15)
-                    .map(c => ({
-                        component_type: componentType,
-                        manufacturer:   c.manufacturer,
-                        part_number:    c.part_number,
-                        model:          c.part_number,
-                        description:    c.description,
-                    }));
-            } else {
-                // No server lock — search full catalog
-                try {
-                    const url = `${BASE}/api/components/learned?type=${encodeURIComponent(componentType)}&q=${encodeURIComponent(q)}`;
-                    const r   = await fetch(url);
-                    results   = await r.json();
-                } catch { return; }
-            }
-
+        function _renderAcResults(input, dropdown, results) {
             dropdown.innerHTML = '';
             if (!results.length) { dropdown.style.display = 'none'; return; }
             results.forEach(comp => {
@@ -979,6 +959,35 @@
             });
             positionDropdown(input, dropdown);
             dropdown.style.display = 'block';
+        }
+
+        // Synchronous search against cached server components — no network call
+        function searchCachedComponents(input, dropdown, componentType, q) {
+            const pool = _lockedServer.components[componentType] || [];
+            const lq   = q.toLowerCase();
+            const results = pool
+                .filter(c => (c.description || '').toLowerCase().includes(lq)
+                          || (c.part_number  || '').toLowerCase().includes(lq)
+                          || (c.manufacturer || '').toLowerCase().includes(lq))
+                .slice(0, 15)
+                .map(c => ({
+                    component_type: componentType,
+                    manufacturer:   c.manufacturer,
+                    part_number:    c.part_number,
+                    model:          c.part_number,
+                    description:    c.description,
+                }));
+            _renderAcResults(input, dropdown, results);
+        }
+
+        async function fetchAcResults(input, dropdown, componentType, q) {
+            let results;
+            try {
+                const url = `${BASE}/api/components/learned?type=${encodeURIComponent(componentType)}&q=${encodeURIComponent(q)}`;
+                const r   = await fetch(url);
+                results   = await r.json();
+            } catch { return; }
+            _renderAcResults(input, dropdown, results);
         }
 
         // Initialise once when basic form is shown
