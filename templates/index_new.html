@@ -518,7 +518,7 @@
             row.className = 'vendor-comp-row';
             row.dataset.ctype = ctype;
             const opts = options.map((c, i) =>
-                `<option value="${i}" data-pn="${c.part_number}" data-desc="${(c.description||'').replace(/"/g,"&quot;")}">`+
+                `<option value="${i}" data-pn="${c.part_number || ''}" data-desc="${(c.description||'').replace(/"/g,"&quot;")}">`+
                 `${c.part_number}${c.description ? ' — ' + c.description.slice(0,60) : ''}</option>`
             ).join('');
             row.innerHTML = `
@@ -530,6 +530,12 @@
                 <input type="number" class="comp-qty" value="1" min="1" max="255" title="Quantity">
                 <button class="btn-remove-comp" onclick="this.closest('.vendor-comp-row').remove()" title="Remove">&times;</button>
             `;
+            // Auto-select the first real option and sync its description
+            const sel = row.querySelector('.vendor-comp-select');
+            if (options.length) {
+                sel.selectedIndex = 1; // skip placeholder at index 0
+                syncVendorRowDesc(sel);
+            }
             return row;
         }
 
@@ -599,6 +605,7 @@
                 }
             });
 
+            if (!components.length) { alert('Select at least one component before saving.'); return; }
             await _submitConfig(name, components);
         }
 
