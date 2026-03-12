@@ -495,11 +495,11 @@
                 el = document.createElement('div');
                 el.id = 'pageToast';
                 el.innerHTML = '<span class="toast-msg"></span><span class="toast-close" aria-label="Dismiss">&#x2715;</span>';
-                el.title = 'Click to dismiss';
                 el.addEventListener('click', () => { clearTimeout(el._timer); el.style.display = 'none'; });
                 // Guard: body may not exist in edge cases — fall back to documentElement
                 (document.body || document.documentElement).appendChild(el);
             }
+            el.title = 'Click to dismiss';  // set on every call — survives future refactors of the creation guard
             el.className = 'page-toast page-toast-' + (type || 'info');
             el.querySelector('.toast-msg').textContent = msg;  // textContent is safe — no XSS
             el.style.display = 'block';
