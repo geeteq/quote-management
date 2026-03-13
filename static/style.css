@@ -3328,6 +3328,12 @@ button:hover {
 }
 .comp-ac-item:last-child { border-bottom: none; }
 .comp-ac-item:hover { background: #f0f4ff; }
+.comp-ac-empty {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    color: #9ca3af;
+    font-style: italic;
+}
 .comp-ac-label {
     font-size: 0.85rem;
     font-weight: 500;

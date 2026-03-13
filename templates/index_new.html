@@ -1121,6 +1121,12 @@
         // Synchronous search against cached server components — no network call
         function searchCachedComponents(input, dropdown, componentType, q) {
             const pool = _lockedServer.components[componentType] || [];
+            if (!pool.length) {
+                dropdown.innerHTML = '<div class="comp-ac-empty">No catalog entries for this server — enter manually</div>';
+                positionDropdown(input, dropdown);
+                dropdown.style.display = 'block';
+                return;
+            }
             const lq   = q.toLowerCase();
             const results = pool
                 .filter(c => (c.description     || '').toLowerCase().includes(lq)
