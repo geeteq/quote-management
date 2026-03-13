@@ -588,8 +588,8 @@
             row.className = 'vendor-comp-row';
             row.dataset.ctype = ctype;
             const opts = options.map((c, i) =>
-                `<option value="${i}" data-pn="${c.part_number || ''}" data-desc="${(c.description||'').replace(/"/g,"&quot;")}">`+
-                `${c.part_number}${c.description ? ' — ' + c.description.slice(0,60) : ''}</option>`
+                `<option value="${i}" data-pn="${_esc(c.part_number)}" data-desc="${_esc(c.description)}">`+
+                `${_esc(c.part_number)}${c.description ? ' — ' + _esc(c.description.slice(0,60)) : ''}</option>`
             ).join('');
             row.innerHTML = `
                 <select class="vendor-comp-select" onchange="syncVendorRowDesc(this)">
@@ -823,7 +823,7 @@
                         <div class="nav-tenant-header" onclick="toggleTenant(${tenant.id})">
                             <span class="nav-expand" id="expand-${tenant.id}">▶</span>
                             <span class="nav-icon">🏢</span>
-                            <span class="nav-label">${tenant.name}</span>
+                            <span class="nav-label">${_esc(tenant.name)}</span>
                             <span class="nav-count">${tenant.project_count}</span>
                         </div>
                         <div class="nav-tenant-projects" id="projects-${tenant.id}" style="display: none;">
@@ -844,9 +844,9 @@
 
             return projects.map(project => `
                 <div class="nav-project ${selectedProjectId === project.id ? 'active' : ''}"
-                     onclick="loadProjectQuotes(${project.id}, '${project.name}', event)">
+                     onclick="loadProjectQuotes(${project.id}, '${_esc(project.name)}', event)">
                     <span class="nav-icon">📁</span>
-                    <span class="nav-label">${project.name}</span>
+                    <span class="nav-label">${_esc(project.name)}</span>
                     <span class="nav-count">${project.quote_count}</span>
                 </div>
             `).join('');
@@ -1026,8 +1026,8 @@
                 const sub   = [s.manufacturer_name, s.form_factor, s.generation,
                                 s.component_count ? `${s.component_count} components` : null]
                               .filter(Boolean).join(' · ');
-                item.innerHTML = `<span class="comp-ac-label">${label}</span>`
-                               + (sub ? `<span class="comp-ac-sub">${sub}</span>` : '');
+                item.innerHTML = `<span class="comp-ac-label">${_esc(label)}</span>`
+                               + (sub ? `<span class="comp-ac-sub">${_esc(sub)}</span>` : '');
                 item.addEventListener('mousedown', () => selectServer(s, input, dropdown));
                 dropdown.appendChild(item);
             });
@@ -1101,8 +1101,8 @@
                 item.className = 'comp-ac-item';
                 const label = comp.description || comp.model || comp.part_number || '';
                 const sub   = [comp.manufacturer, comp.part_number].filter(Boolean).join(' · ');
-                item.innerHTML = `<span class="comp-ac-label">${label}</span>`
-                               + (sub ? `<span class="comp-ac-sub">${sub}</span>` : '');
+                item.innerHTML = `<span class="comp-ac-label">${_esc(label)}</span>`
+                               + (sub ? `<span class="comp-ac-sub">${_esc(sub)}</span>` : '');
                 item.addEventListener('mousedown', () => {
                     input.value = label;
                     input._selectedComp = comp;
@@ -1194,20 +1194,20 @@
             try {
                 const res  = await fetch(`${BASE}/api/configs/${configId}/match`);
                 const data = await res.json();
-                if (!res.ok) { area.innerHTML = `<div class="match-error">${data.error || 'Error'}</div>`; return; }
+                if (!res.ok) { area.innerHTML = `<div class="match-error">${_esc(data.error) || 'Error'}</div>`; return; }
                 if (!data.quotes || !data.quotes.length) {
                     area.innerHTML = '<div class="match-empty">No active quotes in this project to score.</div>';
                     return;
                 }
-                let html = `<div class="match-results"><div class="match-results-header">Quote Coverage — ${data.config_name}</div>`;
+                let html = `<div class="match-results"><div class="match-results-header">Quote Coverage — ${_esc(data.config_name)}</div>`;
                 data.quotes.forEach(q => {
                     const pct = q.type_coverage_pct;
                     const cls = pct >= 80 ? 'match-high' : pct >= 50 ? 'match-mid' : 'match-low';
                     html += `
                     <div class="match-quote-row ${cls}">
                         <div class="match-quote-meta">
-                            <span class="match-quote-ref">${q.quote_ref}</span>
-                            <span class="match-vendor">${q.vendor || ''}</span>
+                            <span class="match-quote-ref">${_esc(q.quote_ref)}</span>
+                            <span class="match-vendor">${_esc(q.vendor)}</span>
                             ${q.total_amount ? `<span class="match-amount">${q.currency || ''} ${Number(q.total_amount).toLocaleString()}</span>` : ''}
                         </div>
                         <div class="match-bar-wrap" title="Type coverage: ${pct}%">
@@ -1226,8 +1226,8 @@
                                 <thead><tr><th>Type</th><th>Part #</th><th>Required Qty</th><th>Type ✓</th><th>Part # ✓</th></tr></thead>
                                 <tbody>${q.components.map(comp => `
                                     <tr class="${comp.type_match ? '' : 'match-miss-row'}">
-                                        <td><span class="component-type-badge">${comp.component_type || '—'}</span></td>
-                                        <td class="mono">${comp.part_number || '—'}</td>
+                                        <td><span class="component-type-badge">${_esc(comp.component_type) || '—'}</span></td>
+                                        <td class="mono">${_esc(comp.part_number) || '—'}</td>
                                         <td>${comp.quantity_required}</td>
                                         <td class="match-bool ${comp.type_match ? 'match-yes' : 'match-no'}">${comp.type_match ? '✓' : '✗'}</td>
                                         <td class="match-bool ${comp.part_match ? 'match-yes' : 'match-no'}">${comp.part_match ? '✓' : '✗'}</td>
@@ -1240,7 +1240,7 @@
                 html += '</div>';
                 area.innerHTML = html;
             } catch (err) {
-                area.innerHTML = `<div class="match-error">Error: ${err.message}</div>`;
+                area.innerHTML = `<div class="match-error">Error: ${_esc(err.message)}</div>`;
             }
         }
 
@@ -1250,9 +1250,9 @@
                 <div class="quote-card-mini ${selectedQuotes.has(quote.id) ? 'selected' : ''}"
                      onclick="window.location.href=BASE + '/quote/${quote.id}'">
                     <div class="quote-card-header">
-                        <div class="vendor-badge ${(quote.vendor||'').toLowerCase()}">${quote.vendor||''}</div>
+                        <div class="vendor-badge ${_esc((quote.vendor||'').toLowerCase())}">${_esc(quote.vendor)}</div>
                         <div style="display:flex;align-items:center;gap:4px;">
-                            <div class="quote-id">${quote.quote_id}</div>
+                            <div class="quote-id">${_esc(quote.quote_id)}</div>
                             <label class="card-compare-check" onclick="event.stopPropagation()" title="Select for comparison">
                                 <input type="checkbox" data-id="${quote.id}"
                                        ${selectedQuotes.has(quote.id) ? 'checked' : ''}
@@ -1260,13 +1260,13 @@
                             </label>
                         </div>
                     </div>
-                    <h3>${quote.customer_name || 'N/A'}</h3>
+                    <h3>${_esc(quote.customer_name) || 'N/A'}</h3>
                     <div class="quote-metadata">
-                        <div class="metadata-item"><span class="metadata-label">Date:</span><span class="metadata-value">${quote.quote_date || 'N/A'}</span></div>
-                        <div class="metadata-item"><span class="metadata-label">Expires:</span><span class="metadata-value${quote.expiry_date && new Date(quote.expiry_date) < new Date() ? ' expired-date' : ''}">${quote.expiry_date || 'N/A'}</span></div>
-                        ${quote.ica ? `<div class="metadata-item"><span class="metadata-label">ICA:</span><span class="metadata-value">${quote.ica}</span></div>` : ''}
-                        ${quote.description ? `<div class="metadata-item"><span class="metadata-label">Description:</span><span class="metadata-value">${quote.description}</span></div>` : ''}
-                        ${quote.po_comments ? `<div class="metadata-item"><span class="metadata-label">PO Comments:</span><span class="metadata-value">${quote.po_comments}</span></div>` : ''}
+                        <div class="metadata-item"><span class="metadata-label">Date:</span><span class="metadata-value">${_esc(quote.quote_date) || 'N/A'}</span></div>
+                        <div class="metadata-item"><span class="metadata-label">Expires:</span><span class="metadata-value${quote.expiry_date && new Date(quote.expiry_date) < new Date() ? ' expired-date' : ''}">${_esc(quote.expiry_date) || 'N/A'}</span></div>
+                        ${quote.ica ? `<div class="metadata-item"><span class="metadata-label">ICA:</span><span class="metadata-value">${_esc(quote.ica)}</span></div>` : ''}
+                        ${quote.description ? `<div class="metadata-item"><span class="metadata-label">Description:</span><span class="metadata-value">${_esc(quote.description)}</span></div>` : ''}
+                        ${quote.po_comments ? `<div class="metadata-item"><span class="metadata-label">PO Comments:</span><span class="metadata-value">${_esc(quote.po_comments)}</span></div>` : ''}
                     </div>
                     <div class="quote-footer">
                         <button class="btn-archive" onclick="event.stopPropagation(); archiveQuote(${quote.id})" title="Archive quote">
@@ -1452,16 +1452,16 @@
                         <div class="quote-card-mini"
                              onclick="window.location.href=BASE + '/quote/${quote.id}'">
                             <div class="quote-card-header">
-                                <div class="vendor-badge ${(quote.vendor||'').toLowerCase()}">${quote.vendor||''}</div>
-                                <div class="quote-id">${quote.quote_id}</div>
+                                <div class="vendor-badge ${_esc((quote.vendor||'').toLowerCase())}">${_esc(quote.vendor)}</div>
+                                <div class="quote-id">${_esc(quote.quote_id)}</div>
                             </div>
-                            <h3>${quote.customer_name || 'N/A'}</h3>
+                            <h3>${_esc(quote.customer_name) || 'N/A'}</h3>
                             <div class="quote-metadata">
-                                ${quote.tenant_name ? `<div class="metadata-item"><span class="metadata-label">Tenant:</span><span class="metadata-value">${quote.tenant_name}</span></div>` : ''}
-                                ${quote.project_name ? `<div class="metadata-item"><span class="metadata-label">Project:</span><span class="metadata-value">${quote.project_name}</span></div>` : ''}
-                                <div class="metadata-item"><span class="metadata-label">Date:</span><span class="metadata-value">${quote.quote_date || 'N/A'}</span></div>
-                                ${quote.ica ? `<div class="metadata-item"><span class="metadata-label">ICA:</span><span class="metadata-value">${quote.ica}</span></div>` : ''}
-                                ${quote.po_comments ? `<div class="metadata-item"><span class="metadata-label">PO Comments:</span><span class="metadata-value">${quote.po_comments}</span></div>` : ''}
+                                ${quote.tenant_name ? `<div class="metadata-item"><span class="metadata-label">Tenant:</span><span class="metadata-value">${_esc(quote.tenant_name)}</span></div>` : ''}
+                                ${quote.project_name ? `<div class="metadata-item"><span class="metadata-label">Project:</span><span class="metadata-value">${_esc(quote.project_name)}</span></div>` : ''}
+                                <div class="metadata-item"><span class="metadata-label">Date:</span><span class="metadata-value">${_esc(quote.quote_date) || 'N/A'}</span></div>
+                                ${quote.ica ? `<div class="metadata-item"><span class="metadata-label">ICA:</span><span class="metadata-value">${_esc(quote.ica)}</span></div>` : ''}
+                                ${quote.po_comments ? `<div class="metadata-item"><span class="metadata-label">PO Comments:</span><span class="metadata-value">${_esc(quote.po_comments)}</span></div>` : ''}
                             </div>
                             <div class="quote-footer">
                                 <span class="price">${quote.currency} ${parseFloat(quote.total_amount||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
