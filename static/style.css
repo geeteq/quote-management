@@ -3386,6 +3386,7 @@ button:hover {
 .basic-nic-row:last-child { border-bottom: none; }
 .nic-role-label   { width: 130px; flex-shrink: 0; font-size: 0.82rem; font-weight: 600; color: #374151; }
 .nic-part-select  { flex: 1; min-width: 0; font-size: 0.83rem; }
+.nic-part-select:disabled { background: #f9fafb; color: #9ca3af; cursor: not-allowed; }
 
 /* ── Vendor config builder ───────────────────────────────────────────────── */
 .vendor-loading { padding: 18px; color: #94a3b8; font-style: italic; text-align: center; }

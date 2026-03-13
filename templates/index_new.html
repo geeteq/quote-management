@@ -250,21 +250,15 @@
                     </div>
                     <div class="basic-nic-row">
                         <span class="nic-role-label">Production NIC</span>
-                        <select id="nicProdSelect" class="nic-part-select">
-                            <option value="">— Select NIC —</option>
-                            {% for n in nic_catalog %}
-                            <option value="{{ n.part_number }}">{{ n.description or n.part_number }}{% if n.description %} ({{ n.part_number }}){% endif %}</option>
-                            {% endfor %}
+                        <select id="nicProdSelect" class="nic-part-select" disabled>
+                            <option value="">— Lock a server to see NICs —</option>
                         </select>
                         <input type="number" id="nicProdQty" class="comp-qty" value="1" min="1" max="255" title="Quantity">
                     </div>
                     <div class="basic-nic-row">
                         <span class="nic-role-label">Management NIC</span>
-                        <select id="nicMgmtSelect" class="nic-part-select">
-                            <option value="">— Select NIC —</option>
-                            {% for n in nic_catalog %}
-                            <option value="{{ n.part_number }}">{{ n.description or n.part_number }}{% if n.description %} ({{ n.part_number }}){% endif %}</option>
-                            {% endfor %}
+                        <select id="nicMgmtSelect" class="nic-part-select" disabled>
+                            <option value="">— Lock a server to see NICs —</option>
                         </select>
                         <input type="number" id="nicMgmtQty" class="comp-qty" value="1" min="1" max="255" title="Quantity">
                     </div>
@@ -957,6 +951,9 @@
         let _acTimer    = null;
         let _lockedServer = null;  // { id, manufacturer_name, components: {CPU:[...], ...} }
 
+        // Full NIC catalog stored in JS — used to rebuild selects when server is locked
+        const _NIC_CATALOG = {{ nic_catalog | tojson }};
+
         function positionDropdown(input, dropdown) {
             const rect      = input.getBoundingClientRect();
             const needed    = dropdown.scrollHeight || 240;
@@ -1060,40 +1057,33 @@
         }
 
         function clearServerLock() {
-            filterNicSelects(null); // restore all NIC options before clearing cache
+            filterNicSelects(null);
             _lockedServer = null;
-            // Clear NIC option cache so next server lock re-saves from current DOM state
-            Object.keys(_nicOriginalOptions).forEach(k => delete _nicOriginalOptions[k]);
             document.getElementById('serverLockBanner').style.display = 'none';
             document.getElementById('serverLockLabel').textContent = '';
         }
-
-        // Store original NIC options once so we can restore them on unlock
-        const _nicOriginalOptions = {};
 
         function filterNicSelects(pool) {
             ['nicProdSelect', 'nicMgmtSelect'].forEach(selId => {
                 const sel = document.getElementById(selId);
                 if (!sel) return;
-
-                // Save originals on first call
-                if (!_nicOriginalOptions[selId]) {
-                    _nicOriginalOptions[selId] = Array.from(sel.options).map(o => o.cloneNode(true));
+                sel.innerHTML = '';
+                if (!pool || !pool.length) {
+                    // No server locked — disable with placeholder
+                    sel.appendChild(new Option('— Lock a server to see NICs —', ''));
+                    sel.disabled = true;
+                    return;
                 }
-
-                if (pool === null) {
-                    // Restore all original options
-                    sel.innerHTML = '';
-                    _nicOriginalOptions[selId].forEach(o => sel.appendChild(o.cloneNode(true)));
-                } else {
-                    // Rebuild select with only matching options + placeholder
-                    const pns = new Set(pool.map(c => c.part_number).filter(Boolean));
-                    const kept = _nicOriginalOptions[selId].filter(o => !o.value || pns.has(o.value));
-                    sel.innerHTML = '';
-                    kept.forEach(o => sel.appendChild(o.cloneNode(true)));
-                    // Reset to placeholder if previous selection is no longer available
-                    if (!pns.has(sel.value)) sel.value = '';
-                }
+                // Rebuild from full catalog filtered to this server's NIC part numbers
+                const pns = new Set(pool.map(c => c.part_number).filter(Boolean));
+                sel.appendChild(new Option('— Select NIC —', ''));
+                _NIC_CATALOG
+                    .filter(n => n.part_number && pns.has(n.part_number))
+                    .forEach(n => {
+                        const label = n.description ? `${n.description} (${n.part_number})` : n.part_number;
+                        sel.appendChild(new Option(label, n.part_number));
+                    });
+                sel.disabled = false;
             });
         }
 
