@@ -921,7 +921,7 @@
             return `<div class="configs-grid">${configs.map(c => `
                 <div class="config-card" id="config-card-${c.id}">
                     <div class="config-card-header">
-                        <span class="config-name">${c.config_name}</span>
+                        <span class="config-name">${_esc(c.config_name)}</span>
                         <div class="config-card-actions">
                             <button class="btn-export-csv" onclick="downloadConfigCSV(${c.id})" title="Download config as CSV">&#8595; CSV</button>
                             <button class="btn-edit-config" onclick="openEditConfig(${c.id})" title="Edit config">&#9998; Edit</button>
@@ -934,11 +934,11 @@
                         <thead><tr><th>Type</th><th>Manufacturer</th><th>Part #</th><th>Model</th><th>Specs</th><th class="qty-col">Qty</th></tr></thead>
                         <tbody>${c.components.map(comp => `
                             <tr>
-                                <td><span class="component-type-badge">${comp.component_type || '—'}</span></td>
-                                <td>${comp.manufacturer_name || '—'}</td>
-                                <td class="mono">${comp.part_number || '—'}</td>
-                                <td>${comp.model || '—'}</td>
-                                <td class="specs-cell">${comp.specs || '—'}</td>
+                                <td><span class="component-type-badge">${_esc(comp.component_type) || '—'}</span></td>
+                                <td>${_esc(comp.manufacturer_name) || '—'}</td>
+                                <td class="mono">${_esc(comp.part_number) || '—'}</td>
+                                <td>${_esc(comp.model) || '—'}</td>
+                                <td class="specs-cell">${_esc(comp.specs) || '—'}</td>
                                 <td class="qty-col mono">${comp.quantity || 1}</td>
                             </tr>`).join('')}
                         </tbody>
