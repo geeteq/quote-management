@@ -738,6 +738,10 @@
             return (v || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;')
                             .replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         }
+        // Sanitize a value for use as a CSS class name — strips everything except a-z, 0-9, - and _
+        function _cssClass(v) {
+            return (v || '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+        }
 
         function addEditRow() {
             document.getElementById('editConfigBody').appendChild(
@@ -1250,7 +1254,7 @@
                 <div class="quote-card-mini ${selectedQuotes.has(quote.id) ? 'selected' : ''}"
                      onclick="window.location.href=BASE + '/quote/${quote.id}'">
                     <div class="quote-card-header">
-                        <div class="vendor-badge ${_esc((quote.vendor||'').toLowerCase())}">${_esc(quote.vendor)}</div>
+                        <div class="vendor-badge ${_cssClass(quote.vendor)}">${_esc(quote.vendor)}</div>
                         <div style="display:flex;align-items:center;gap:4px;">
                             <div class="quote-id">${_esc(quote.quote_id)}</div>
                             <label class="card-compare-check" onclick="event.stopPropagation()" title="Select for comparison">
@@ -1452,7 +1456,7 @@
                         <div class="quote-card-mini"
                              onclick="window.location.href=BASE + '/quote/${quote.id}'">
                             <div class="quote-card-header">
-                                <div class="vendor-badge ${_esc((quote.vendor||'').toLowerCase())}">${_esc(quote.vendor)}</div>
+                                <div class="vendor-badge ${_cssClass(quote.vendor)}">${_esc(quote.vendor)}</div>
                                 <div class="quote-id">${_esc(quote.quote_id)}</div>
                             </div>
                             <h3>${_esc(quote.customer_name) || 'N/A'}</h3>
