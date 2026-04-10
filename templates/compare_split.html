@@ -407,7 +407,7 @@
                             </div>
                             <div class="summary-item total-amount">
                                 <span class="summary-label">Total Amount</span>
-                                <span class="summary-value">{{ quote1.quote.currency }} {{ '{:,.2f}'.format(quote1.quote.total_amount) }}</span>
+                                <span class="summary-value">${{ '{:,.2f}'.format(quote1.quote.total_amount) }}</span>
                             </div>
                         </div>
                     </div>
@@ -485,9 +485,9 @@
 
                         {% set total_memory = namespace(capacity_gb=0, count=0) %}
                         {% for item in quote1.categories['Memory'] %}
+                            {% set total_memory.count = total_memory.count + item.quantity %}
                             {% if item.specs and item.specs.get('capacity_gb') %}
                                 {% set total_memory.capacity_gb = total_memory.capacity_gb + (item.quantity * item.specs.capacity_gb) %}
-                                {% set total_memory.count = total_memory.count + item.quantity %}
                             {% endif %}
                         {% endfor %}
 
@@ -498,7 +498,7 @@
                             </div>
                             <div class="cpu-spec-item">
                                 <div class="cpu-spec-label">Total Capacity</div>
-                                <div class="cpu-spec-value">{{ total_memory.capacity_gb }} GB</div>
+                                <div class="cpu-spec-value">{% if total_memory.capacity_gb %}{{ total_memory.capacity_gb }} GB{% else %}—{% endif %}</div>
                             </div>
                         </div>
 
@@ -591,7 +591,7 @@
                             </div>
                             <div class="summary-item total-amount">
                                 <span class="summary-label">Total Amount</span>
-                                <span class="summary-value">{{ quote2.quote.currency }} {{ '{:,.2f}'.format(quote2.quote.total_amount) }}</span>
+                                <span class="summary-value">${{ '{:,.2f}'.format(quote2.quote.total_amount) }}</span>
                             </div>
                         </div>
                     </div>
@@ -669,9 +669,9 @@
 
                         {% set total_memory = namespace(capacity_gb=0, count=0) %}
                         {% for item in quote2.categories['Memory'] %}
+                            {% set total_memory.count = total_memory.count + item.quantity %}
                             {% if item.specs and item.specs.get('capacity_gb') %}
                                 {% set total_memory.capacity_gb = total_memory.capacity_gb + (item.quantity * item.specs.capacity_gb) %}
-                                {% set total_memory.count = total_memory.count + item.quantity %}
                             {% endif %}
                         {% endfor %}
 
@@ -682,7 +682,7 @@
                             </div>
                             <div class="cpu-spec-item">
                                 <div class="cpu-spec-label">Total Capacity</div>
-                                <div class="cpu-spec-value">{{ total_memory.capacity_gb }} GB</div>
+                                <div class="cpu-spec-value">{% if total_memory.capacity_gb %}{{ total_memory.capacity_gb }} GB{% else %}—{% endif %}</div>
                             </div>
                         </div>
 

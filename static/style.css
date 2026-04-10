@@ -3640,6 +3640,48 @@ button:hover {
 }
 .btn-match-quotes:hover { background: #dcfce7; border-color: #4ade80; }
 
+.btn-price-history {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: #fffbeb;
+    color: #b45309;
+    border: 1px solid #fcd34d;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+}
+.btn-price-history:hover { background: #fef3c7; border-color: #f59e0b; }
+
+/* Best Value badge */
+.best-value-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #92400e;
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+    border-radius: 20px;
+    padding: 2px 8px;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+.match-best-value {
+    outline: 2px solid #f59e0b;
+    outline-offset: -2px;
+}
+
+/* Price history chart hint */
+.price-history-hint {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    margin: 10px 0 0;
+    text-align: center;
+}
+
 .btn-edit-config {
     padding: 4px 10px;
     font-size: 0.75rem;

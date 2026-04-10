@@ -49,7 +49,7 @@
                         <td>{{ q.customer_name or '—' }}</td>
                         <td>{{ q.quote_date or '—' }}</td>
                         <td>{{ q.expiry_date or '—' }}</td>
-                        <td class="amount-cell">{{ q.currency }} {{ '{:,.2f}'.format(q.total_amount) if q.total_amount else '—' }}</td>
+                        <td class="amount-cell">${{ '{:,.2f}'.format(q.total_amount) if q.total_amount else '—' }}</td>
                         <td>{{ q.tenant_name or '—' }}</td>
                         <td>{{ q.project_name or '—' }}</td>
                         <td>{{ q.ica or '—' }}</td>

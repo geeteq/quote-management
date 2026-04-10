@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quote Management System</title>
     <link rel="stylesheet" href="static/style.css?v={{ static_version }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <!-- Top Actions (Compare + Admin) -->
@@ -157,6 +158,24 @@
                     <button type="button" class="btn-secondary" onclick="closeUploadModal()">Cancel</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Price History Modal -->
+    <div id="priceHistoryModal" class="modal" style="display:none;">
+        <div class="modal-content modal-wide">
+            <div class="modal-header">
+                <h2 id="priceHistoryTitle">Price History</h2>
+                <button class="modal-close" onclick="closePriceHistory()">&times;</button>
+            </div>
+            <div id="priceHistoryBody" style="padding:0 4px 8px;">
+                <div id="priceHistoryLoading" class="match-loading" style="display:none;">Loading price history…</div>
+                <div id="priceHistoryEmpty" class="match-empty" style="display:none;">No matching quotes found for this config yet.</div>
+                <canvas id="priceHistoryChart" style="display:none; max-height:380px;"></canvas>
+                <p class="price-history-hint" id="priceHistoryHint" style="display:none;">
+                    Showing quotes with ≥50% component type match against this config, grouped by vendor.
+                </p>
+            </div>
         </div>
     </div>
 
@@ -972,6 +991,7 @@
                         <div class="config-card-actions">
                             <button class="btn-export-csv" onclick="downloadConfigCSV(${c.id})" title="Download config as CSV">&#8595; CSV</button>
                             <button class="btn-edit-config" onclick="openEditConfig(${c.id})" title="Edit config">&#9998; Edit</button>
+                            <button class="btn-price-history" onclick="showPriceHistory(${c.id}, ${JSON.stringify(_esc(c.config_name))})" title="View price trend over time">&#128200; History</button>
                             <button class="btn-match-quotes" onclick="matchConfig(${c.id})" title="Score all project quotes against this config">&#9878; Match Quotes</button>
                             <button class="btn-delete-config" onclick="deleteConfig(${c.id})" title="Delete config">&times;</button>
                         </div>
@@ -1250,16 +1270,25 @@
                     area.innerHTML = '<div class="match-empty">No active quotes in this project to score.</div>';
                     return;
                 }
+
+                // Best value = highest-matching quote (≥80%) with lowest price
+                const highMatches = data.quotes.filter(q => q.type_coverage_pct >= 80 && q.total_amount);
+                const bestQuote = highMatches.length
+                    ? highMatches.reduce((a, b) => a.total_amount <= b.total_amount ? a : b)
+                    : null;
+
                 let html = `<div class="match-results"><div class="match-results-header">Quote Coverage — ${_esc(data.config_name)}</div>`;
                 data.quotes.forEach(q => {
                     const pct = q.type_coverage_pct;
                     const cls = pct >= 80 ? 'match-high' : pct >= 50 ? 'match-mid' : 'match-low';
+                    const isBest = bestQuote && q.quote_id === bestQuote.quote_id;
                     html += `
-                    <div class="match-quote-row ${cls}">
+                    <div class="match-quote-row ${cls}${isBest ? ' match-best-value' : ''}">
                         <div class="match-quote-meta">
                             <span class="match-quote-ref">${_esc(q.quote_ref)}</span>
                             <span class="match-vendor">${_esc(q.vendor)}</span>
-                            ${q.total_amount ? `<span class="match-amount">${q.currency || ''} ${Number(q.total_amount).toLocaleString()}</span>` : ''}
+                            ${isBest ? '<span class="best-value-badge">★ Best Value</span>' : ''}
+                            ${q.total_amount ? `<span class="match-amount">$${Number(q.total_amount).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>` : ''}
                         </div>
                         <div class="match-bar-wrap" title="Type coverage: ${pct}%">
                             <div class="match-bar" style="width:${Math.round(pct)}%"></div>
@@ -1293,6 +1322,107 @@
             } catch (err) {
                 area.innerHTML = `<div class="match-error">Error: ${_esc(err.message)}</div>`;
             }
+        }
+
+        // ── Price History ─────────────────────────────────────────────────────
+        let _priceChart = null;
+
+        const VENDOR_COLORS = {
+            'HPE':   { line: '#00b388', fill: 'rgba(0,179,136,0.12)' },
+            'Dell':  { line: '#007db8', fill: 'rgba(0,125,184,0.12)' },
+            'Cisco': { line: '#e2231a', fill: 'rgba(226,35,26,0.12)'  },
+        };
+        function vendorColor(vendor) {
+            return VENDOR_COLORS[vendor] || { line: '#7c3aed', fill: 'rgba(124,58,237,0.12)' };
+        }
+
+        async function showPriceHistory(configId, configName) {
+            const modal   = document.getElementById('priceHistoryModal');
+            const title   = document.getElementById('priceHistoryTitle');
+            const loading = document.getElementById('priceHistoryLoading');
+            const empty   = document.getElementById('priceHistoryEmpty');
+            const canvas  = document.getElementById('priceHistoryChart');
+            const hint    = document.getElementById('priceHistoryHint');
+
+            title.textContent = `Price History — ${configName}`;
+            loading.style.display = '';
+            empty.style.display   = 'none';
+            canvas.style.display  = 'none';
+            hint.style.display    = 'none';
+            modal.style.display   = 'flex';
+
+            if (_priceChart) { _priceChart.destroy(); _priceChart = null; }
+
+            try {
+                const res  = await fetch(`${BASE}/api/configs/${configId}/price-history`);
+                const data = await res.json();
+                loading.style.display = 'none';
+
+                if (!data.series || !data.series.length) {
+                    empty.style.display = '';
+                    return;
+                }
+
+                const datasets = data.series.map(s => {
+                    const col = vendorColor(s.vendor);
+                    return {
+                        label:           s.vendor,
+                        data:            s.points.map(p => ({ x: p.quote_date, y: p.total_amount, ref: p.quote_ref, score: p.score })),
+                        borderColor:     col.line,
+                        backgroundColor: col.fill,
+                        pointBackgroundColor: col.line,
+                        pointRadius:     5,
+                        pointHoverRadius: 7,
+                        tension:         0.3,
+                        fill:            true,
+                    };
+                });
+
+                canvas.style.display = '';
+                hint.style.display   = '';
+                _priceChart = new Chart(canvas, {
+                    type: 'line',
+                    data: { datasets },
+                    options: {
+                        responsive: true,
+                        interaction: { mode: 'point' },
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    title: items => items[0].raw.x || '',
+                                    label: item => {
+                                        const d = item.raw;
+                                        return ` ${item.dataset.label}  $${Number(d.y).toLocaleString('en-US', {minimumFractionDigits:2})}  (${d.ref}, ${d.score}% match)`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                type: 'category',
+                                title: { display: true, text: 'Quote Date' },
+                                ticks: { maxRotation: 45 }
+                            },
+                            y: {
+                                title: { display: true, text: 'Total Amount (CAD)' },
+                                ticks: {
+                                    callback: v => '$' + Number(v).toLocaleString('en-US', {minimumFractionDigits:0})
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (e) {
+                loading.style.display = 'none';
+                empty.textContent = 'Error loading price history.';
+                empty.style.display = '';
+            }
+        }
+
+        function closePriceHistory() {
+            document.getElementById('priceHistoryModal').style.display = 'none';
+            if (_priceChart) { _priceChart.destroy(); _priceChart = null; }
         }
 
         function renderQuotesHtml(quotes) {
@@ -1347,7 +1477,7 @@
                             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 2a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm0 5a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm5 1v1H6v1h4V9h-1V8H6zm0 0" fill="currentColor"/></svg>
                             Archive
                         </button>
-                        <span class="price">${quote.currency} ${parseFloat(quote.total_amount).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                        <span class="price">$${parseFloat(quote.total_amount).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
                     </div>
                 </div>`;
             }
@@ -1577,7 +1707,7 @@
                                 ${quote.po_comments ? `<div class="metadata-item"><span class="metadata-label">PO Comments:</span><span class="metadata-value">${_esc(quote.po_comments)}</span></div>` : ''}
                             </div>
                             <div class="quote-footer">
-                                <span class="price">${quote.currency} ${parseFloat(quote.total_amount||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                                <span class="price">$${parseFloat(quote.total_amount||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
                             </div>
                         </div>
                     `).join('');

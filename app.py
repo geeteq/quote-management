@@ -1760,6 +1760,81 @@ def api_config_match(config_id):
 
 
 # =============================================================================
+# PRICE HISTORY
+# =============================================================================
+
+@app.route('/api/configs/<int:config_id>/price-history')
+def api_config_price_history(config_id):
+    """
+    Return price-over-time data for quotes that match this config at >= 50% type coverage.
+    Response: { config_id, config_name, series: [{vendor, points: [{quote_date, total_amount, quote_ref, score}]}] }
+    """
+    db = get_db()
+    try:
+        config_row = db.execute(
+            "SELECT id, config_name, project_id FROM base_configs WHERE id = ?", (config_id,)
+        ).fetchone()
+        if not config_row:
+            return jsonify({'error': 'Config not found'}), 404
+
+        config_comps = db.execute("""
+            SELECT cc.component_type, cc.part_number
+            FROM base_config_components bcc
+            JOIN component_catalog cc ON bcc.component_id = cc.id
+            WHERE bcc.config_id = ?
+        """, (config_id,)).fetchall()
+        config_comps = [dict(c) for c in config_comps]
+        total = len(config_comps)
+
+        quotes = db.execute("""
+            SELECT id, quote_id, vendor, total_amount, quote_date
+            FROM quotes
+            WHERE project_id = ? AND status != 'archived' AND total_amount IS NOT NULL
+            ORDER BY quote_date ASC
+        """, (config_row['project_id'],)).fetchall()
+
+        vendors = {}
+        for quote in quotes:
+            if total:
+                line_items = db.execute(
+                    "SELECT category FROM line_items WHERE quote_id = ?", (quote['id'],)
+                ).fetchall()
+                cats = {li['category'] for li in line_items if li['category']}
+                type_hits = sum(1 for c in config_comps if (c['component_type'] or '') in cats)
+                score = round(type_hits / total * 100, 1)
+            else:
+                score = 0
+
+            if score < 50:
+                continue
+
+            vendor = quote['vendor'] or 'Unknown'
+            if vendor not in vendors:
+                vendors[vendor] = []
+            vendors[vendor].append({
+                'quote_ref':    quote['quote_id'],
+                'total_amount': float(quote['total_amount']),
+                'quote_date':   quote['quote_date'],
+                'score':        score,
+            })
+
+        series = sorted(
+            [{'vendor': v, 'points': pts} for v, pts in vendors.items()],
+            key=lambda s: s['vendor']
+        )
+
+        return jsonify({
+            'config_id':   config_id,
+            'config_name': config_row['config_name'],
+            'series':      series,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+
+# =============================================================================
 # ADMIN: TRANSACTIONS LEDGER
 # =============================================================================
 
