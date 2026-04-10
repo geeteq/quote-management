@@ -579,6 +579,14 @@ def migrate_db():
             db.commit()
             logger.info("M21: quotes.quote_items column added")
 
+        # ── M22: default quote_items to 1 where null ──────────────────────────
+        updated = db.execute(
+            "UPDATE quotes SET quote_items = 1 WHERE quote_items IS NULL"
+        ).rowcount
+        if updated:
+            db.commit()
+            logger.info(f"M22: set quote_items = 1 on {updated} quote(s)")
+
     finally:
         db.execute("PRAGMA foreign_keys = ON")
         db.close()
