@@ -1444,6 +1444,29 @@ def api_admin_quote_delete(quote_id):
         db.close()
 
 
+@app.route('/api/quotes/<int:quote_id>/items', methods=['PATCH'])
+def api_quote_update_items(quote_id):
+    """Update quote_items for a quote."""
+    data = request.get_json(silent=True) or {}
+    try:
+        qty = int(data.get('quote_items', 0))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Invalid value'}), 400
+    if qty < 1 or qty > 255:
+        return jsonify({'error': 'Quantity must be between 1 and 255'}), 400
+    db = get_db()
+    try:
+        if not db.execute("SELECT id FROM quotes WHERE id = ?", (quote_id,)).fetchone():
+            return jsonify({'error': 'Quote not found'}), 404
+        db.execute("UPDATE quotes SET quote_items = ? WHERE id = ?", (qty, quote_id))
+        db.commit()
+        return jsonify({'success': True, 'quote_items': qty})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+
 @app.route('/api/quotes/<int:quote_id>/archive', methods=['POST'])
 def api_quote_archive(quote_id):
     """Archive a quote (hides it from the frontend)."""

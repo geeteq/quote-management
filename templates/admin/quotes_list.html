@@ -50,8 +50,14 @@
                         <td>{{ q.quote_date or '—' }}</td>
                         <td>{{ q.expiry_date or '—' }}</td>
                         <td class="amount-cell">${{ '{:,.2f}'.format(q.total_amount) if q.total_amount else '—' }}</td>
-                        <td class="amount-cell">${{ '{:,.2f}'.format(q.unit_cost) if q.unit_cost else '—' }}</td>
-                        <td>{{ q.quote_items if q.quote_items else '—' }}</td>
+                        <td class="amount-cell unit-cost-cell" id="uc-{{ q.id }}">${{ '{:,.2f}'.format(q.unit_cost) if q.unit_cost else '—' }}</td>
+                        <td>
+                            <input type="number" class="qty-inline" id="qi-{{ q.id }}"
+                                   value="{{ q.quote_items or 1 }}" min="1" max="255" step="1"
+                                   data-quote-id="{{ q.id }}"
+                                   data-total="{{ q.total_amount or 0 }}"
+                                   title="Press Enter to save">
+                        </td>
                         <td>{{ q.tenant_name or '—' }}</td>
                         <td>{{ q.project_name or '—' }}</td>
                         <td>{{ q.ica or '—' }}</td>
@@ -78,5 +84,51 @@
         </div>
         {% endif %}
     </div>
+
+    <script>
+        const BASE = document.querySelector('base').getAttribute('href').replace(/\/$/, '');
+
+        document.querySelectorAll('.qty-inline').forEach(input => {
+            input.addEventListener('keydown', async (e) => {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+
+                const quoteId = input.dataset.quoteId;
+                const total   = parseFloat(input.dataset.total) || 0;
+                const qty     = parseInt(input.value, 10);
+
+                if (!qty || qty < 1 || qty > 255) {
+                    input.classList.add('qty-error');
+                    setTimeout(() => input.classList.remove('qty-error'), 1200);
+                    return;
+                }
+
+                try {
+                    const res = await fetch(`${BASE}/api/quotes/${quoteId}/items`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ quote_items: qty }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        // Update unit cost cell in place
+                        const ucCell = document.getElementById(`uc-${quoteId}`);
+                        if (ucCell && total > 0) {
+                            const uc = (total / qty).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            ucCell.textContent = `$${uc}`;
+                        }
+                        input.classList.add('qty-saved');
+                        setTimeout(() => input.classList.remove('qty-saved'), 1200);
+                    } else {
+                        input.classList.add('qty-error');
+                        setTimeout(() => input.classList.remove('qty-error'), 1200);
+                    }
+                } catch {
+                    input.classList.add('qty-error');
+                    setTimeout(() => input.classList.remove('qty-error'), 1200);
+                }
+            });
+        });
+    </script>
 </body>
 </html>

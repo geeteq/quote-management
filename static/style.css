@@ -2142,6 +2142,30 @@ button:hover {
     font-size: 12px;
 }
 
+.qty-inline {
+    width: 60px;
+    padding: 3px 6px;
+    border: 1px solid #d1d5db;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    text-align: center;
+    background: #f9fafb;
+    transition: border-color 0.15s, background 0.15s;
+}
+.qty-inline:focus {
+    outline: none;
+    border-color: #667eea;
+    background: #fff;
+}
+.qty-inline.qty-saved {
+    border-color: #10b981;
+    background: #ecfdf5;
+}
+.qty-inline.qty-error {
+    border-color: #ef4444;
+    background: #fef2f2;
+}
+
 .admin-record-count {
     font-size: 13px;
     color: #888;
