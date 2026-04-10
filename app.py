@@ -1867,7 +1867,7 @@ def api_config_price_history(config_id):
         total = len(config_comps)
 
         quotes = db.execute("""
-            SELECT id, quote_id, vendor, total_amount, quote_date
+            SELECT id, quote_id, vendor, total_amount, quote_items, quote_date
             FROM quotes
             WHERE project_id = ? AND status != 'archived' AND total_amount IS NOT NULL
             ORDER BY quote_date ASC
@@ -1888,12 +1888,18 @@ def api_config_price_history(config_id):
             if score < 50:
                 continue
 
+            total_amt = float(quote['total_amount'])
+            items = quote['quote_items']
+            unit_cost = round(total_amt / items, 2) if items and items > 0 else total_amt
+
             vendor = quote['vendor'] or 'Unknown'
             if vendor not in vendors:
                 vendors[vendor] = []
             vendors[vendor].append({
                 'quote_ref':    quote['quote_id'],
-                'total_amount': float(quote['total_amount']),
+                'unit_cost':    unit_cost,
+                'total_amount': total_amt,
+                'quote_items':  items,
                 'quote_date':   quote['quote_date'],
                 'score':        score,
             })

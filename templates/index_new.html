@@ -1631,7 +1631,7 @@
                     const col = vendorColor(s.vendor);
                     return {
                         label:           s.vendor,
-                        data:            s.points.map(p => ({ x: p.quote_date, y: p.total_amount, ref: p.quote_ref, score: p.score })),
+                        data:            s.points.map(p => ({ x: p.quote_date, y: p.unit_cost, ref: p.quote_ref, score: p.score, items: p.quote_items })),
                         borderColor:     col.line,
                         backgroundColor: col.fill,
                         pointBackgroundColor: col.line,
@@ -1657,7 +1657,8 @@
                                     title: items => items[0].raw.x || '',
                                     label: item => {
                                         const d = item.raw;
-                                        return ` ${item.dataset.label}  $${Number(d.y).toLocaleString('en-US', {minimumFractionDigits:2})}  (${d.ref}, ${d.score}% match)`;
+                                        const label = d.items ? `unit cost` : `total`;
+                                        return ` ${item.dataset.label}  $${Number(d.y).toLocaleString('en-US', {minimumFractionDigits:2})} ${label}  (${d.ref}, ${d.score}% match)`;
                                     }
                                 }
                             }
@@ -1669,7 +1670,7 @@
                                 ticks: { maxRotation: 45 }
                             },
                             y: {
-                                title: { display: true, text: 'Total Amount (CAD)' },
+                                title: { display: true, text: 'Unit Cost (CAD)' },
                                 ticks: {
                                     callback: v => '$' + Number(v).toLocaleString('en-US', {minimumFractionDigits:0})
                                 }
