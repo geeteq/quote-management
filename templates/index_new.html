@@ -1627,37 +1627,20 @@
                     return;
                 }
 
-                // Collect all unique dates across all vendors, sorted
-                const allDates = [...new Set(
-                    data.series.flatMap(s => s.points.map(p => p.quote_date))
-                )].sort();
+                // One x-position per quote (unique ref), sorted by date then ref
+                // so every quote gets its own distinct point on the line
+                const allPoints = data.series
+                    .flatMap(s => s.points.map(p => ({ ...p, vendor: s.vendor })))
+                    .sort((a, b) => a.quote_date.localeCompare(b.quote_date) || a.quote_ref.localeCompare(b.quote_ref));
+                const allRefs = allPoints.map(p => p.quote_ref);
 
-                // Build datasets: plain numeric arrays aligned to allDates
-                // Multiple quotes on the same date → average unit cost, concatenate refs
                 const datasets = data.series.map(s => {
                     const col    = vendorColor(s.vendor);
-                    // Group points by date
-                    const byDate = {};
-                    s.points.forEach(p => {
-                        if (!byDate[p.quote_date]) byDate[p.quote_date] = [];
-                        byDate[p.quote_date].push(p);
-                    });
-                    const values = [];
-                    const meta   = [];   // parallel tooltip info
-                    allDates.forEach(d => {
-                        const pts = byDate[d];
-                        if (!pts) { values.push(null); meta.push(null); return; }
-                        const avg  = pts.reduce((s, p) => s + p.unit_cost, 0) / pts.length;
-                        const refs = pts.map(p => p.quote_ref).join(', ');
-                        const sc   = pts.map(p => p.score).join('/');
-                        const itms = pts[0].quote_items;
-                        values.push(Math.round(avg * 100) / 100);
-                        meta.push({ refs, sc, itms });
-                    });
+                    const byRef  = Object.fromEntries(s.points.map(p => [p.quote_ref, p]));
                     return {
                         label:           s.vendor,
-                        data:            values,
-                        _meta:           meta,
+                        data:            allRefs.map(ref => byRef[ref] ? byRef[ref].unit_cost : null),
+                        _meta:           allRefs.map(ref => byRef[ref] || null),
                         borderColor:     col.line,
                         backgroundColor: col.fill,
                         pointBackgroundColor: col.line,
@@ -1673,7 +1656,7 @@
                 hint.style.display   = '';
                 _priceChart = new Chart(canvas, {
                     type: 'line',
-                    data: { labels: allDates, datasets },
+                    data: { labels: allRefs, datasets },
                     options: {
                         responsive: true,
                         interaction: { mode: 'index', intersect: false },
@@ -1681,12 +1664,15 @@
                             legend: { position: 'top' },
                             tooltip: {
                                 callbacks: {
+                                    title: items => {
+                                        const m = items[0].dataset._meta[items[0].dataIndex];
+                                        return m ? `${m.quote_date}  —  ${m.quote_ref}` : items[0].label;
+                                    },
                                     label: item => {
                                         if (item.raw === null) return null;
                                         const m     = item.dataset._meta[item.dataIndex];
-                                        const label = m && m.itms > 1 ? 'unit cost' : 'total';
-                                        const refs  = m ? ` (${m.refs})` : '';
-                                        return ` ${item.dataset.label}  $${Number(item.raw).toLocaleString('en-US', {minimumFractionDigits:2})} ${label}${refs}`;
+                                        const label = m && m.quote_items > 1 ? 'unit cost' : 'total';
+                                        return ` ${item.dataset.label}  $${Number(item.raw).toLocaleString('en-US', {minimumFractionDigits:2})} ${label}`;
                                     }
                                 }
                             }
@@ -1694,7 +1680,14 @@
                         scales: {
                             x: {
                                 title: { display: true, text: 'Quote Date' },
-                                ticks: { maxRotation: 45 }
+                                ticks: {
+                                    maxRotation: 45,
+                                    callback: (val, idx) => {
+                                        // Show the date of the point, not the quote ref
+                                        const p = allPoints[idx];
+                                        return p ? p.quote_date : val;
+                                    }
+                                }
                             },
                             y: {
                                 title: { display: true, text: 'Unit Cost (CAD)' },
