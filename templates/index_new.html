@@ -991,7 +991,7 @@
                         <div class="config-card-actions">
                             <button class="btn-export-csv" onclick="downloadConfigCSV(${c.id})" title="Download config as CSV">&#8595; CSV</button>
                             <button class="btn-edit-config" onclick="openEditConfig(${c.id})" title="Edit config">&#9998; Edit</button>
-                            <button class="btn-price-history" onclick="showPriceHistory(${c.id}, ${JSON.stringify(_esc(c.config_name))})" title="View price trend over time">&#128200; History</button>
+                            <button class="btn-price-history" onclick="showPriceHistory(${c.id})" title="View price trend over time">&#128200; History</button>
                             <button class="btn-match-quotes" onclick="matchConfig(${c.id})" title="Score all project quotes against this config">&#9878; Match Quotes</button>
                             <button class="btn-delete-config" onclick="deleteConfig(${c.id})" title="Delete config">&times;</button>
                         </div>
@@ -1336,7 +1336,7 @@
             return VENDOR_COLORS[vendor] || { line: '#7c3aed', fill: 'rgba(124,58,237,0.12)' };
         }
 
-        async function showPriceHistory(configId, configName) {
+        async function showPriceHistory(configId) {
             const modal   = document.getElementById('priceHistoryModal');
             const title   = document.getElementById('priceHistoryTitle');
             const loading = document.getElementById('priceHistoryLoading');
@@ -1344,7 +1344,7 @@
             const canvas  = document.getElementById('priceHistoryChart');
             const hint    = document.getElementById('priceHistoryHint');
 
-            title.textContent = `Price History — ${configName}`;
+            title.textContent = 'Price History';
             loading.style.display = '';
             empty.style.display   = 'none';
             canvas.style.display  = 'none';
@@ -1357,6 +1357,7 @@
                 const res  = await fetch(`${BASE}/api/configs/${configId}/price-history`);
                 const data = await res.json();
                 loading.style.display = 'none';
+                if (data.config_name) title.textContent = `Price History — ${data.config_name}`;
 
                 if (!data.series || !data.series.length) {
                     empty.style.display = '';

@@ -41,17 +41,34 @@ import time as _time
 STATIC_VERSION = str(int(_time.time()))
 
 
+_DATE_FORMATS = ('%Y-%m-%d', '%m/%d/%Y', '%B %d, %Y', '%B %d, %Y', '%-m/%-d/%Y', '%d-%b-%Y')
+
+def normalize_date(value):
+    """Parse any known date string and return YYYY-MM-DD, or None if unparseable."""
+    if not value:
+        return None
+    v = str(value).strip()
+    if not v:
+        return None
+    from datetime import datetime
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(v, fmt).strftime('%Y-%m-%d')
+        except ValueError:
+            continue
+    return v  # Return as-is if no format matched rather than silently drop
+
+
 @app.template_filter('is_expired')
 def is_expired_filter(expiry_date):
     if not expiry_date:
         return False
     from datetime import date, datetime
-    for fmt in ('%B %d, %Y', '%Y-%m-%d', '%m/%d/%Y'):
-        try:
-            return datetime.strptime(expiry_date, fmt).date() < date.today()
-        except ValueError:
-            continue
-    return False
+    normed = normalize_date(expiry_date)
+    try:
+        return datetime.strptime(normed, '%Y-%m-%d').date() < date.today()
+    except (ValueError, TypeError):
+        return False
 
 
 def _git_branch():
@@ -509,6 +526,22 @@ def migrate_db():
             db.commit()
             logger.info("M17: quotes.config_id column added")
 
+        # ── M18: normalize quote_date / expiry_date to YYYY-MM-DD ─────────────
+        rows = db.execute("SELECT id, quote_date, expiry_date FROM quotes").fetchall()
+        updated = 0
+        for row in rows:
+            new_qd = normalize_date(row['quote_date'])
+            new_ed = normalize_date(row['expiry_date'])
+            if new_qd != row['quote_date'] or new_ed != row['expiry_date']:
+                db.execute(
+                    "UPDATE quotes SET quote_date = ?, expiry_date = ? WHERE id = ?",
+                    (new_qd, new_ed, row['id'])
+                )
+                updated += 1
+        if updated:
+            db.commit()
+            logger.info(f"M18: normalized {updated} quote date(s) to YYYY-MM-DD")
+
     finally:
         db.execute("PRAGMA foreign_keys = ON")
         db.close()
@@ -540,8 +573,8 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
             quote_id,
             quote_data.get('vendor'),
             quote_data.get('customer_name'),
-            quote_data.get('quote_date'),
-            quote_data.get('expiry_date'),
+            normalize_date(quote_data.get('quote_date')),
+            normalize_date(quote_data.get('expiry_date')),
             quote_data.get('total_amount'),
             quote_data.get('currency', 'CAD'),
             quote_data.get('description') or os.path.basename(pdf_path),
