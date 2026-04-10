@@ -873,21 +873,9 @@ class DellExcelParser:
                 self.quote_data[field] = transform(value) if transform else value
 
             elif label == 'Total (CAD):':
-                # Prefer subtotal row (col 18) when we're inside the summary table;
-                # fall back to the header-area total (col 4).
-                amt = self._parse_amount(self._cell(row, 18)) \
-                   or self._parse_amount(value)
+                amt = self._parse_amount(value)
                 if amt and 'total_amount' not in self.quote_data:
                     self.quote_data['total_amount'] = amt
-
-        # Subtotal row has label in col 13 (N): look for it explicitly
-        for row in rows:
-            if self._cell(row, 13) == 'Subtotal':
-                amt = self._parse_amount(self._cell(row, 18))
-                if amt:
-                    # Use subtotal (pre-tax) for consistent price comparison
-                    self.quote_data['total_amount'] = amt
-                break
 
     def _parse_line_items(self, rows):
         """
