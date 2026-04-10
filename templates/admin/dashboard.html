@@ -305,9 +305,53 @@
                 const content = doc.querySelector('.quotes-admin-content');
                 contentArea.innerHTML = content ? content.outerHTML : html;
                 initQuotesSearch();
+                initQtyInputs();
             } catch (error) {
                 contentArea.innerHTML = `<div class="error">Error loading quotes: ${error.message}</div>`;
             }
+        }
+
+        function initQtyInputs() {
+            document.querySelectorAll('.qty-inline').forEach(input => {
+                input.addEventListener('keydown', async (e) => {
+                    if (e.key !== 'Enter') return;
+                    e.preventDefault();
+
+                    const quoteId = input.dataset.quoteId;
+                    const total   = parseFloat(input.dataset.total) || 0;
+                    const qty     = parseInt(input.value, 10);
+
+                    if (!qty || qty < 1 || qty > 255) {
+                        input.classList.add('qty-error');
+                        setTimeout(() => input.classList.remove('qty-error'), 1200);
+                        return;
+                    }
+
+                    try {
+                        const res = await fetch(`${BASE}/api/quotes/${quoteId}/items`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ quote_items: qty }),
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            const ucCell = document.getElementById(`uc-${quoteId}`);
+                            if (ucCell && total > 0) {
+                                const uc = (total / qty).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                ucCell.textContent = `$${uc}`;
+                            }
+                            input.classList.add('qty-saved');
+                            setTimeout(() => input.classList.remove('qty-saved'), 1200);
+                        } else {
+                            input.classList.add('qty-error');
+                            setTimeout(() => input.classList.remove('qty-error'), 1200);
+                        }
+                    } catch {
+                        input.classList.add('qty-error');
+                        setTimeout(() => input.classList.remove('qty-error'), 1200);
+                    }
+                });
+            });
         }
 
         function initQuotesSearch() {
