@@ -1745,7 +1745,7 @@
                             Archive
                         </button>
                         ${quote.total_amount && quote.quote_items && quote.quote_items > 0
-                            ? `<span class="price unit-cost">Unit cost: $${(parseFloat(quote.total_amount) / quote.quote_items).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>`
+                            ? `<span class="price">Unit cost: $${(parseFloat(quote.total_amount) / quote.quote_items).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>`
                             : `<span class="price">$${parseFloat(quote.total_amount || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>`
                         }
                     </div>
