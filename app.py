@@ -557,6 +557,21 @@ def migrate_db():
             db.commit()
             logger.info(f"M19: repathed {repathed} PDF path(s) to current DATA_DIR")
 
+        # ── M20: repath servers.pdf_path to current DATA_DIR/quickspecs ──────
+        quickspec_folder = os.path.join(DATA_DIR, 'quickspecs')
+        srv_rows = db.execute("SELECT id, pdf_path FROM servers WHERE pdf_path IS NOT NULL").fetchall()
+        srv_repathed = 0
+        for row in srv_rows:
+            p = row['pdf_path']
+            if not os.path.exists(p):
+                candidate = os.path.join(quickspec_folder, os.path.basename(p))
+                if os.path.exists(candidate):
+                    db.execute("UPDATE servers SET pdf_path = ? WHERE id = ?", (candidate, row['id']))
+                    srv_repathed += 1
+        if srv_repathed:
+            db.commit()
+            logger.info(f"M20: repathed {srv_repathed} QuickSpec PDF path(s) to current DATA_DIR")
+
     finally:
         db.execute("PRAGMA foreign_keys = ON")
         db.close()
@@ -2505,7 +2520,11 @@ def admin_server_pdf(server_id):
     if not os.path.isabs(pdf_path):
         pdf_path = os.path.join(_app_dir, pdf_path)
     if not os.path.exists(pdf_path):
-        return 'PDF file not found on disk', 404
+        fallback = os.path.join(DATA_DIR, 'quickspecs', os.path.basename(pdf_path))
+        if os.path.exists(fallback):
+            pdf_path = fallback
+        else:
+            return 'PDF file not found on disk', 404
     return send_file(pdf_path, mimetype='application/pdf',
                      download_name=os.path.basename(pdf_path))
 
