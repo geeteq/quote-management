@@ -52,6 +52,12 @@
                 <div class="nav-section">
                     <h2 class="nav-tree-header">Quotes</h2>
 
+                    <!-- Dashboard / Scorecard -->
+                    <div class="nav-item" id="navDashboard" onclick="showDashboard()">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-label">Dashboard</span>
+                    </div>
+
                     <!-- Unassigned Quotes -->
                     <div class="nav-item" onclick="loadUnassignedQuotes()">
                         <span class="nav-icon">📄</span>
@@ -103,6 +109,16 @@
                                    autocomplete="off">
                         </div>
                         <p class="welcome-search-hint" id="searchHint">Search across all quotes</p>
+                    </div>
+                    <!-- Vendor Scorecard -->
+                    <div class="scorecard-section" id="scorecardSection">
+                        <div class="scorecard-header">
+                            <span class="scorecard-title">Vendor Scorecard</span>
+                            <span class="scorecard-subtitle">Based on all active quotes</span>
+                        </div>
+                        <div class="scorecard-grid" id="scorecardGrid">
+                            <div class="scorecard-loading">Loading scorecard…</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -790,10 +806,95 @@
         }
 
         // Initialize
+        let _welcomeHtml = '';
         document.addEventListener('DOMContentLoaded', () => {
+            _welcomeHtml = document.getElementById('quotesContent').innerHTML;
             loadNavigationTree();
             loadTenantsForUpload();
+            loadScorecard();
         });
+
+        // ── Vendor Scorecard ──────────────────────────────────────────────────
+        function showDashboard() {
+            selectedProjectId = null;
+            document.querySelectorAll('.nav-project-header, .nav-vendor').forEach(el => el.classList.remove('active'));
+            document.getElementById('contentTitle').textContent = 'Welcome';
+            document.getElementById('contentSubtitle').textContent = 'Select a project to view quotes';
+            document.getElementById('quotesContent').innerHTML = _welcomeHtml;
+            loadScorecard();
+        }
+
+        async function loadScorecard() {
+            const grid = document.getElementById('scorecardGrid');
+            if (!grid) return;
+            try {
+                const res  = await fetch(`${BASE}/api/scorecard`);
+                const data = await res.json();
+                if (!data.length) {
+                    grid.innerHTML = '<p class="scorecard-empty">No quote data yet.</p>';
+                    return;
+                }
+                grid.innerHTML = data.map(v => renderScorecardCard(v)).join('');
+            } catch (e) {
+                if (grid) grid.innerHTML = '<p class="scorecard-empty">Could not load scorecard.</p>';
+            }
+        }
+
+        function renderScorecardCard(v) {
+            const deltaVal  = v.avg_delta_pct;
+            const deltaKnown = deltaVal !== null && deltaVal !== undefined;
+            const deltaCls  = !deltaKnown ? '' : deltaVal < 0 ? 'delta-cheaper' : deltaVal > 0 ? 'delta-pricier' : 'delta-neutral';
+            const deltaText = !deltaKnown ? '—'
+                : (deltaVal > 0 ? '+' : '') + deltaVal.toFixed(1) + '%';
+            const deltaLabel = !deltaKnown ? 'vs competitors'
+                : deltaVal < 0 ? 'below avg' : deltaVal > 0 ? 'above avg' : 'at avg';
+
+            const winKnown = v.win_rate_pct !== null && v.win_rate_pct !== undefined;
+            const winPct   = winKnown ? v.win_rate_pct : 0;
+            const winCls   = winPct >= 60 ? 'win-high' : winPct >= 30 ? 'win-mid' : 'win-low';
+
+            const expiryText = v.avg_expiry_days ? `${v.avg_expiry_days}d` : '—';
+
+            const avgFmt = v.avg_amount
+                ? '$' + Number(v.avg_amount).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})
+                : '—';
+
+            return `<div class="scorecard-card">
+                <div class="scorecard-vendor-row">
+                    <div class="vendor-badge ${_cssClass(v.vendor)}">${_esc(v.vendor)}</div>
+                    <span class="scorecard-quote-count">${v.quote_count} quote${v.quote_count !== 1 ? 's' : ''}</span>
+                </div>
+                <div class="scorecard-stats">
+                    <div class="scorecard-stat">
+                        <span class="sc-label">Avg Quote Value</span>
+                        <span class="sc-value">${avgFmt}</span>
+                    </div>
+                    <div class="scorecard-stat">
+                        <span class="sc-label">Quote Window</span>
+                        <span class="sc-value">${expiryText}</span>
+                    </div>
+                    <div class="scorecard-stat">
+                        <span class="sc-label">Price vs Competitors</span>
+                        <span class="sc-value ${deltaCls}">${deltaText} <span class="sc-sublabel">${deltaLabel}</span></span>
+                    </div>
+                    ${winKnown ? `
+                    <div class="scorecard-stat scorecard-winbar-row">
+                        <span class="sc-label">Win Rate</span>
+                        <span class="sc-value">${winPct}%</span>
+                    </div>
+                    <div class="scorecard-winbar-wrap">
+                        <div class="scorecard-winbar ${winCls}" style="width:${Math.min(winPct,100)}%"></div>
+                    </div>
+                    <div class="scorecard-winbar-meta">
+                        <span>${v.wins} win${v.wins !== 1 ? 's' : ''} in ${v.projects_competed} competitive project${v.projects_competed !== 1 ? 's' : ''}</span>
+                    </div>` : `
+                    <div class="scorecard-stat">
+                        <span class="sc-label">Win Rate</span>
+                        <span class="sc-value">—</span>
+                    </div>`}
+                </div>
+            </div>`;
+        }
 
         // Load navigation hierarchy
         async function loadNavigationTree() {

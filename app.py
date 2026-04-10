@@ -1904,6 +1904,140 @@ def api_config_price_history(config_id):
 
 
 # =============================================================================
+# VENDOR SCORECARD
+# =============================================================================
+
+@app.route('/api/scorecard')
+def api_scorecard():
+    """
+    Per-vendor aggregate stats across all active quotes:
+      - quote_count
+      - avg_expiry_days   : average days between quote_date and expiry_date
+      - win_rate_pct      : % of projects where vendor had the lowest price
+      - avg_delta_pct     : average % above/below project-mean price
+                            (negative = cheaper than average, positive = more expensive)
+    Only projects with quotes from at least 2 distinct vendors contribute to
+    win_rate and avg_delta so the comparison is meaningful.
+    """
+    db = get_db()
+    try:
+        # ── Base stats ────────────────────────────────────────────────────────
+        base = db.execute("""
+            SELECT
+                vendor,
+                COUNT(*)                                          AS quote_count,
+                ROUND(AVG(total_amount), 2)                       AS avg_amount,
+                ROUND(AVG(
+                    CASE
+                        WHEN expiry_date IS NOT NULL AND expiry_date != ''
+                         AND quote_date  IS NOT NULL AND quote_date  != ''
+                        THEN julianday(expiry_date) - julianday(quote_date)
+                    END
+                ), 0)                                             AS avg_expiry_days
+            FROM quotes
+            WHERE status != 'archived'
+              AND vendor IS NOT NULL AND vendor != ''
+            GROUP BY vendor
+            ORDER BY quote_count DESC
+        """).fetchall()
+
+        # ── Win rate (lowest price per project, competitive projects only) ────
+        win_rows = db.execute("""
+            WITH competitive AS (
+                -- projects where at least 2 vendors quoted
+                SELECT project_id
+                FROM quotes
+                WHERE status != 'archived'
+                  AND project_id IS NOT NULL
+                  AND total_amount IS NOT NULL
+                  AND vendor IS NOT NULL
+                GROUP BY project_id
+                HAVING COUNT(DISTINCT vendor) >= 2
+            ),
+            proj_min AS (
+                SELECT q.project_id, MIN(q.total_amount) AS min_price
+                FROM quotes q
+                JOIN competitive c ON c.project_id = q.project_id
+                WHERE q.status != 'archived' AND q.total_amount IS NOT NULL
+                GROUP BY q.project_id
+            ),
+            wins AS (
+                SELECT q.vendor, COUNT(*) AS win_count
+                FROM quotes q
+                JOIN proj_min pm
+                  ON pm.project_id = q.project_id
+                 AND pm.min_price  = q.total_amount
+                WHERE q.status != 'archived' AND q.vendor IS NOT NULL
+                GROUP BY q.vendor
+            ),
+            appearances AS (
+                SELECT q.vendor, COUNT(DISTINCT q.project_id) AS proj_count
+                FROM quotes q
+                JOIN competitive c ON c.project_id = q.project_id
+                WHERE q.status != 'archived' AND q.vendor IS NOT NULL
+                GROUP BY q.vendor
+            )
+            SELECT
+                a.vendor,
+                COALESCE(w.win_count, 0)                                          AS wins,
+                a.proj_count,
+                ROUND(COALESCE(w.win_count, 0) * 100.0 / a.proj_count, 1)        AS win_rate_pct
+            FROM appearances a
+            LEFT JOIN wins w ON w.vendor = a.vendor
+        """).fetchall()
+        win_map = {r['vendor']: dict(r) for r in win_rows}
+
+        # ── Price delta vs project average (competitive projects only) ─────────
+        delta_rows = db.execute("""
+            WITH competitive AS (
+                SELECT project_id
+                FROM quotes
+                WHERE status != 'archived'
+                  AND project_id IS NOT NULL
+                  AND total_amount IS NOT NULL
+                  AND vendor IS NOT NULL
+                GROUP BY project_id
+                HAVING COUNT(DISTINCT vendor) >= 2
+            ),
+            proj_avg AS (
+                SELECT q.project_id, AVG(q.total_amount) AS avg_price
+                FROM quotes q
+                JOIN competitive c ON c.project_id = q.project_id
+                WHERE q.status != 'archived' AND q.total_amount IS NOT NULL
+                GROUP BY q.project_id
+            )
+            SELECT
+                q.vendor,
+                ROUND(AVG((q.total_amount - pa.avg_price) / pa.avg_price * 100.0), 1) AS avg_delta_pct
+            FROM quotes q
+            JOIN proj_avg pa ON pa.project_id = q.project_id
+            WHERE q.status != 'archived'
+              AND q.vendor IS NOT NULL
+              AND q.total_amount IS NOT NULL
+            GROUP BY q.vendor
+        """).fetchall()
+        delta_map = {r['vendor']: r['avg_delta_pct'] for r in delta_rows}
+
+        result = []
+        for row in base:
+            v = dict(row)
+            vendor = v['vendor']
+            wd = win_map.get(vendor, {})
+            v['wins']             = wd.get('wins', 0)
+            v['projects_competed']= wd.get('proj_count', 0)
+            v['win_rate_pct']     = wd.get('win_rate_pct')
+            v['avg_delta_pct']    = delta_map.get(vendor)
+            result.append(v)
+
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Scorecard error: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+
+# =============================================================================
 # ADMIN: TRANSACTIONS LEDGER
 # =============================================================================
 

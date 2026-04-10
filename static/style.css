@@ -3674,6 +3674,118 @@ button:hover {
     outline-offset: -2px;
 }
 
+/* ── Vendor Scorecard ───────────────────────────────────────────────────── */
+.scorecard-section {
+    margin-top: 40px;
+    text-align: left;
+}
+.scorecard-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #f0f2ff;
+}
+.scorecard-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1e293b;
+    letter-spacing: 0.01em;
+}
+.scorecard-subtitle {
+    font-size: 0.78rem;
+    color: #94a3b8;
+}
+.scorecard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+}
+.scorecard-loading,
+.scorecard-empty {
+    color: #94a3b8;
+    font-size: 0.88rem;
+    padding: 12px 0;
+}
+.scorecard-card {
+    background: #fafbff;
+    border: 1px solid #e8eaf6;
+    border-radius: 12px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: box-shadow 0.2s;
+}
+.scorecard-card:hover {
+    box-shadow: 0 4px 18px rgba(102,126,234,0.13);
+}
+.scorecard-vendor-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.scorecard-quote-count {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    font-weight: 500;
+}
+.scorecard-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.scorecard-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+}
+.sc-label {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+.sc-value {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1e293b;
+    text-align: right;
+}
+.sc-sublabel {
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: inherit;
+    opacity: 0.75;
+}
+.delta-cheaper { color: #16a34a; }
+.delta-pricier  { color: #dc2626; }
+.delta-neutral  { color: #64748b; }
+
+.scorecard-winbar-row { margin-top: 4px; }
+.scorecard-winbar-wrap {
+    height: 6px;
+    background: #e8eaf6;
+    border-radius: 99px;
+    overflow: hidden;
+}
+.scorecard-winbar {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.6s ease;
+}
+.win-high { background: #22c55e; }
+.win-mid  { background: #f59e0b; }
+.win-low  { background: #94a3b8; }
+.scorecard-winbar-meta {
+    font-size: 0.68rem;
+    color: #94a3b8;
+    margin-top: 4px;
+}
+
 /* Price history chart hint */
 .price-history-hint {
     font-size: 0.78rem;
