@@ -1685,7 +1685,7 @@
                                         if (item.raw === null) return null;
                                         const m     = item.dataset._meta[item.dataIndex];
                                         const label = m && m.itms > 1 ? 'unit cost' : 'total';
-                                        const refs  = m ? ` (${m.refs}, ${m.sc}% match)` : '';
+                                        const refs  = m ? ` (${m.refs})` : '';
                                         return ` ${item.dataset.label}  $${Number(item.raw).toLocaleString('en-US', {minimumFractionDigits:2})} ${label}${refs}`;
                                     }
                                 }

@@ -1885,62 +1885,36 @@ def api_config_match(config_id):
 @app.route('/api/configs/<int:config_id>/price-history')
 def api_config_price_history(config_id):
     """
-    Return price-over-time data for quotes that match this config at >= 50% type coverage.
-    Response: { config_id, config_name, series: [{vendor, points: [{quote_date, total_amount, quote_ref, score}]}] }
+    Return price-over-time data for quotes directly assigned to this config.
+    Response: { config_id, config_name, series: [{vendor, points: [{quote_date, unit_cost, total_amount, quote_items, quote_ref}]}] }
     """
     db = get_db()
     try:
         config_row = db.execute(
-            "SELECT id, config_name, project_id FROM base_configs WHERE id = ?", (config_id,)
+            "SELECT id, config_name FROM base_configs WHERE id = ?", (config_id,)
         ).fetchone()
         if not config_row:
             return jsonify({'error': 'Config not found'}), 404
 
-        config_comps = db.execute("""
-            SELECT cc.component_type, cc.part_number
-            FROM base_config_components bcc
-            JOIN component_catalog cc ON bcc.component_id = cc.id
-            WHERE bcc.config_id = ?
-        """, (config_id,)).fetchall()
-        config_comps = [dict(c) for c in config_comps]
-        total = len(config_comps)
-
         quotes = db.execute("""
-            SELECT id, quote_id, vendor, total_amount, quote_items, quote_date
+            SELECT quote_id, vendor, total_amount, quote_items, quote_date
             FROM quotes
-            WHERE project_id = ? AND status != 'archived' AND total_amount IS NOT NULL
+            WHERE config_id = ? AND status != 'archived' AND total_amount IS NOT NULL
             ORDER BY quote_date ASC
-        """, (config_row['project_id'],)).fetchall()
+        """, (config_id,)).fetchall()
 
         vendors = {}
         for quote in quotes:
-            if total:
-                line_items = db.execute(
-                    "SELECT category FROM line_items WHERE quote_id = ?", (quote['id'],)
-                ).fetchall()
-                cats = {li['category'] for li in line_items if li['category']}
-                type_hits = sum(1 for c in config_comps if (c['component_type'] or '') in cats)
-                score = round(type_hits / total * 100, 1)
-            else:
-                score = 0
-
-            if score < 50:
-                continue
-
             total_amt = float(quote['total_amount'])
-            items = quote['quote_items']
+            items     = quote['quote_items']
             unit_cost = round(total_amt / items, 2) if items and items > 0 else total_amt
-
-            vendor = quote['vendor'] or 'Unknown'
-            if vendor not in vendors:
-                vendors[vendor] = []
-            vendors[vendor].append({
+            vendor    = quote['vendor'] or 'Unknown'
+            vendors.setdefault(vendor, []).append({
                 'quote_ref':    quote['quote_id'],
                 'unit_cost':    unit_cost,
                 'total_amount': total_amt,
                 'quote_items':  items,
                 'quote_date':   quote['quote_date'],
-                'score':        score,
             })
 
         series = sorted(
