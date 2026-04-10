@@ -1632,16 +1632,32 @@
                     data.series.flatMap(s => s.points.map(p => p.quote_date))
                 )].sort();
 
-                // Index point data by date per vendor for bar chart alignment
+                // Build datasets: plain numeric arrays aligned to allDates
+                // Multiple quotes on the same date → average unit cost, concatenate refs
                 const datasets = data.series.map(s => {
-                    const col     = vendorColor(s.vendor);
-                    const byDate  = Object.fromEntries(s.points.map(p => [p.quote_date, p]));
+                    const col    = vendorColor(s.vendor);
+                    // Group points by date
+                    const byDate = {};
+                    s.points.forEach(p => {
+                        if (!byDate[p.quote_date]) byDate[p.quote_date] = [];
+                        byDate[p.quote_date].push(p);
+                    });
+                    const values = [];
+                    const meta   = [];   // parallel tooltip info
+                    allDates.forEach(d => {
+                        const pts = byDate[d];
+                        if (!pts) { values.push(null); meta.push(null); return; }
+                        const avg  = pts.reduce((s, p) => s + p.unit_cost, 0) / pts.length;
+                        const refs = pts.map(p => p.quote_ref).join(', ');
+                        const sc   = pts.map(p => p.score).join('/');
+                        const itms = pts[0].quote_items;
+                        values.push(Math.round(avg * 100) / 100);
+                        meta.push({ refs, sc, itms });
+                    });
                     return {
                         label:           s.vendor,
-                        data:            allDates.map(d => {
-                            const p = byDate[d];
-                            return p ? { x: d, y: p.unit_cost, ref: p.quote_ref, score: p.score, items: p.quote_items } : null;
-                        }),
+                        data:            values,
+                        _meta:           meta,
                         backgroundColor: col.line,
                         borderColor:     col.line,
                         borderRadius:    4,
@@ -1662,10 +1678,11 @@
                             tooltip: {
                                 callbacks: {
                                     label: item => {
-                                        const d = item.raw;
-                                        if (!d) return null;
-                                        const label = d.items ? 'unit cost' : 'total';
-                                        return ` ${item.dataset.label}  $${Number(d.y).toLocaleString('en-US', {minimumFractionDigits:2})} ${label}  (${d.ref}, ${d.score}% match)`;
+                                        if (item.raw === null) return null;
+                                        const m     = item.dataset._meta[item.dataIndex];
+                                        const label = m && m.itms > 1 ? 'unit cost' : 'total';
+                                        const refs  = m ? ` (${m.refs}, ${m.sc}% match)` : '';
+                                        return ` ${item.dataset.label}  $${Number(item.raw).toLocaleString('en-US', {minimumFractionDigits:2})} ${label}${refs}`;
                                     }
                                 }
                             }
