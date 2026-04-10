@@ -126,8 +126,14 @@
                     </div>
                     <div class="form-group" id="projectGroup">
                         <label for="projectSelect">Project <span class="required">*</span></label>
-                        <select id="projectSelect" name="project_id">
+                        <select id="projectSelect" name="project_id" onchange="loadUploadConfigs()">
                             <option value="">Select project...</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="configGroup" style="display:none;">
+                        <label for="configSelect">Base Config</label>
+                        <select id="configSelect" name="config_id">
+                            <option value="">— No config selected —</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -1334,6 +1340,7 @@
                         ${quote.ica ? `<div class="metadata-item"><span class="metadata-label">ICA:</span><span class="metadata-value">${_esc(quote.ica)}</span></div>` : ''}
                         ${quote.description ? `<div class="metadata-item"><span class="metadata-label">Description:</span><span class="metadata-value">${_esc(quote.description)}</span></div>` : ''}
                         ${quote.po_comments ? `<div class="metadata-item"><span class="metadata-label">PO Comments:</span><span class="metadata-value">${_esc(quote.po_comments)}</span></div>` : ''}
+                        <div class="metadata-item"><span class="metadata-label">Config:</span><span class="metadata-value">${quote.config_name ? _esc(quote.config_name) : 'No config'}</span></div>
                     </div>
                     <div class="quote-footer">
                         <button class="btn-archive" onclick="event.stopPropagation(); archiveQuote(${quote.id})" title="Archive quote">
@@ -1403,6 +1410,8 @@
             document.getElementById('uploadModal').style.display = 'none';
             document.getElementById('uploadForm').reset();
             document.getElementById('uploadStatus').innerHTML = '';
+            document.getElementById('configGroup').style.display = 'none';
+            document.getElementById('configSelect').innerHTML = '<option value="">— No config selected —</option>';
             updateProjectGroup();
         }
 
@@ -1436,6 +1445,34 @@
                 projectGroup.style.display = 'none';
                 projectSelect.required = false;
                 projectSelect.value = '';
+                document.getElementById('configGroup').style.display = 'none';
+                document.getElementById('configSelect').innerHTML = '<option value="">— No config selected —</option>';
+            }
+        }
+
+        async function loadUploadConfigs() {
+            const projectId = document.getElementById('projectSelect').value;
+            const configGroup = document.getElementById('configGroup');
+            const configSelect = document.getElementById('configSelect');
+            configSelect.innerHTML = '<option value="">— No config selected —</option>';
+            if (!projectId) { configGroup.style.display = 'none'; return; }
+            try {
+                const res = await fetch(`${BASE}/api/projects/${projectId}/configs`);
+                const configs = await res.json();
+                if (configs.length) {
+                    configs.forEach(cfg => {
+                        const opt = document.createElement('option');
+                        opt.value = cfg.id;
+                        opt.textContent = cfg.config_name;
+                        configSelect.appendChild(opt);
+                    });
+                    configGroup.style.display = '';
+                } else {
+                    configGroup.style.display = 'none';
+                }
+            } catch (e) {
+                console.error('Error loading configs:', e);
+                configGroup.style.display = 'none';
             }
         }
 

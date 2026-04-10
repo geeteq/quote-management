@@ -503,12 +503,18 @@ def migrate_db():
             db.commit()
             logger.info("M16: defined_components merged into component_catalog, base_config_components FK updated")
 
+        # ── M17: quotes.config_id ─────────────────────────────────────────────
+        if 'config_id' not in cols('quotes'):
+            db.execute("ALTER TABLE quotes ADD COLUMN config_id INTEGER REFERENCES base_configs(id) ON DELETE SET NULL")
+            db.commit()
+            logger.info("M17: quotes.config_id column added")
+
     finally:
         db.execute("PRAGMA foreign_keys = ON")
         db.close()
 
 
-def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_id=None, tenant_name='', project_name='', ica='', po_comments=''):
+def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_id=None, tenant_name='', project_name='', ica='', po_comments='', config_id=None):
     """Save parsed quote data to database."""
     logger.debug(f"Saving quote: {quote_data.get('quote_id')} with {len(line_items)} items")
 
@@ -528,8 +534,8 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
         cursor.execute('''
             INSERT INTO quotes (quote_id, vendor, customer_name, quote_date, expiry_date,
                                total_amount, currency, description, pdf_path,
-                               tenant_id, project_id, tenant_name, project_name, ica, po_comments)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               tenant_id, project_id, tenant_name, project_name, ica, po_comments, config_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             quote_id,
             quote_data.get('vendor'),
@@ -545,7 +551,8 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
             tenant_name,
             project_name,
             ica,
-            po_comments[:255] if po_comments else None
+            po_comments[:255] if po_comments else None,
+            config_id
         ))
 
         quote_db_id = cursor.lastrowid
@@ -839,9 +846,11 @@ def upload_quote():
         project_id = request.form.get('project_id', '').strip()
         ica = request.form.get('ica', '').strip()
         po_comments = request.form.get('po_comments', '').strip()
+        config_id_raw = request.form.get('config_id', '').strip()
 
         tenant_id = int(tenant_id) if tenant_id else None
         project_id = int(project_id) if project_id else None
+        config_id = int(config_id_raw) if config_id_raw else None
 
         # Look up tenant/project names for the filename
         db = get_db()
@@ -890,7 +899,8 @@ def upload_quote():
             tenant_name=tenant_name,
             project_name=project_name,
             ica=ica,
-            po_comments=po_comments
+            po_comments=po_comments,
+            config_id=config_id
         )
 
         logger.info(f"Quote saved successfully with ID: {quote_db_id}")
@@ -1232,11 +1242,14 @@ def api_project_quotes(project_id):
     """Get all quotes for a specific project."""
     db = get_db()
     quotes = db.execute('''
-        SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-               total_amount, currency, description, tenant_name, project_name, ica, status, po_comments, uploaded_at
-        FROM quotes
-        WHERE project_id = ? AND status != 'archived'
-        ORDER BY uploaded_at DESC
+        SELECT q.id, q.quote_id, q.vendor, q.customer_name, q.quote_date, q.expiry_date,
+               q.total_amount, q.currency, q.description, q.tenant_name, q.project_name,
+               q.ica, q.status, q.po_comments, q.uploaded_at, q.config_id,
+               bc.config_name
+        FROM quotes q
+        LEFT JOIN base_configs bc ON bc.id = q.config_id
+        WHERE q.project_id = ? AND q.status != 'archived'
+        ORDER BY q.uploaded_at DESC
     ''', (project_id,)).fetchall()
     db.close()
     return jsonify([dict(q) for q in quotes])
@@ -1247,11 +1260,14 @@ def api_unassigned_quotes():
     """Get quotes not assigned to any project."""
     db = get_db()
     quotes = db.execute('''
-        SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-               total_amount, currency, description, tenant_name, project_name, ica, status, po_comments, uploaded_at
-        FROM quotes
-        WHERE project_id IS NULL AND status != 'archived'
-        ORDER BY uploaded_at DESC
+        SELECT q.id, q.quote_id, q.vendor, q.customer_name, q.quote_date, q.expiry_date,
+               q.total_amount, q.currency, q.description, q.tenant_name, q.project_name,
+               q.ica, q.status, q.po_comments, q.uploaded_at, q.config_id,
+               bc.config_name
+        FROM quotes q
+        LEFT JOIN base_configs bc ON bc.id = q.config_id
+        WHERE q.project_id IS NULL AND q.status != 'archived'
+        ORDER BY q.uploaded_at DESC
     ''').fetchall()
     db.close()
     return jsonify([dict(q) for q in quotes])
