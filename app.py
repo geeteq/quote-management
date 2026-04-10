@@ -542,6 +542,21 @@ def migrate_db():
             db.commit()
             logger.info(f"M18: normalized {updated} quote date(s) to YYYY-MM-DD")
 
+        # ── M19: repath pdf_path to current DATA_DIR if file moved ────────────
+        upload_folder = os.path.join(DATA_DIR, 'uploads')
+        pdf_rows = db.execute("SELECT id, pdf_path FROM quotes WHERE pdf_path IS NOT NULL").fetchall()
+        repathed = 0
+        for row in pdf_rows:
+            p = row['pdf_path']
+            if not os.path.exists(p):
+                candidate = os.path.join(upload_folder, os.path.basename(p))
+                if os.path.exists(candidate):
+                    db.execute("UPDATE quotes SET pdf_path = ? WHERE id = ?", (candidate, row['id']))
+                    repathed += 1
+        if repathed:
+            db.commit()
+            logger.info(f"M19: repathed {repathed} PDF path(s) to current DATA_DIR")
+
     finally:
         db.execute("PRAGMA foreign_keys = ON")
         db.close()
@@ -999,8 +1014,14 @@ def serve_pdf(quote_id):
     pdf_path = quote['pdf_path']
     if not os.path.isabs(pdf_path):
         pdf_path = os.path.join(_app_dir, pdf_path)
+    # If stored path doesn't exist (e.g. migrated from another machine),
+    # fall back to locating the file by name in the current uploads directory.
     if not os.path.exists(pdf_path):
-        return "PDF file not found on disk", 404
+        fallback = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(pdf_path))
+        if os.path.exists(fallback):
+            pdf_path = fallback
+        else:
+            return "PDF file not found on disk", 404
     return send_file(pdf_path, mimetype='application/pdf')
 
 
