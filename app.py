@@ -1998,7 +1998,7 @@ def api_scorecard():
             SELECT
                 vendor,
                 COUNT(*)                                          AS quote_count,
-                ROUND(AVG(total_amount), 2)                       AS avg_amount,
+                ROUND(AVG(CAST(total_amount AS REAL) / COALESCE(NULLIF(quote_items, 0), 1)), 2) AS avg_unit_value,
                 ROUND(AVG(
                     CASE
                         WHEN expiry_date IS NOT NULL AND expiry_date != ''

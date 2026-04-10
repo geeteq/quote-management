@@ -865,8 +865,8 @@
 
             const expiryText = v.avg_expiry_days ? `${v.avg_expiry_days}d` : '—';
 
-            const avgFmt = v.avg_amount
-                ? '$' + Number(v.avg_amount).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})
+            const avgFmt = v.avg_unit_value
+                ? '$' + Number(v.avg_unit_value).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})
                 : '—';
 
             return `<div class="scorecard-card">
@@ -876,7 +876,7 @@
                 </div>
                 <div class="scorecard-stats">
                     <div class="scorecard-stat">
-                        <span class="sc-label">Avg Quote Value</span>
+                        <span class="sc-label">Avg Unit Value</span>
                         <span class="sc-value">${avgFmt}</span>
                     </div>
                     <div class="scorecard-stat">
