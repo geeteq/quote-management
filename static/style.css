@@ -3675,6 +3675,52 @@ button:hover {
 }
 
 /* ── Expiry Dashboard ───────────────────────────────────────────────────── */
+.expiry-dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.expiry-dashboard-section {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    padding: 24px 28px;
+    margin-bottom: 28px;
+}
+.expiry-dashboard-section-expired {
+    border-color: #fecaca;
+    background: #fffafa;
+}
+.expiry-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0 8px;
+    margin-bottom: 16px;
+    border-bottom: 2px solid #e5e7eb;
+}
+.expiry-section-header h2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0;
+}
+.expiry-section-header-expired {
+    border-bottom-color: #fca5a5;
+}
+.expiry-section-header-expired h2 {
+    color: #991b1b;
+}
+.expiry-section-count {
+    font-size: 0.8rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+.expiry-empty {
+    color: #6b7280;
+    font-size: 0.9rem;
+    padding: 12px 0 24px;
+}
 .expiry-band {
     margin-bottom: 32px;
 }

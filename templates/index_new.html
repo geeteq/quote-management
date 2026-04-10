@@ -908,7 +908,7 @@
             _clearNavActive();
             document.getElementById('navExpiryDashboard').classList.add('active');
             document.getElementById('contentTitle').textContent = 'Expiry Dashboard';
-            document.getElementById('contentSubtitle').textContent = 'Quotes expiring within the next 90 days';
+            document.getElementById('contentSubtitle').textContent = 'Upcoming expirations and recently expired quotes';
 
             const content = document.getElementById('quotesContent');
             content.innerHTML = '<div class="loading">Loading…</div>';
@@ -917,48 +917,101 @@
                 const res  = await fetch(`${BASE}/api/reports/expiry`);
                 const data = await res.json();
 
-                if (!data.length) {
-                    content.innerHTML = '<div class="empty-state"><p>No quotes expiring in the next 90 days.</p></div>';
-                    return;
-                }
+                const upcoming = data.upcoming || [];
+                const expired  = data.expired  || [];
 
-                // Bucket into 3 bands
-                const bands = [
-                    { label: 'Expiring within 7 days',  cls: 'expiry-critical', quotes: [] },
-                    { label: 'Expiring in 8 – 30 days', cls: 'expiry-warning',  quotes: [] },
-                    { label: 'Expiring in 31 – 90 days',cls: 'expiry-ok',       quotes: [] },
-                ];
-                data.forEach(q => {
-                    const d = q.days_remaining;
-                    if (d <= 7)       bands[0].quotes.push(q);
-                    else if (d <= 30) bands[1].quotes.push(q);
-                    else              bands[2].quotes.push(q);
-                });
+                let upcomingInner = '';
+                let expiredInner  = '';
 
-                content.innerHTML = bands
-                    .filter(b => b.quotes.length)
-                    .map(b => `
+                // ── Upcoming bands ──
+                if (upcoming.length === 0) {
+                    upcomingInner = '<div class="expiry-empty">No quotes expiring in the next 90 days.</div>';
+                } else {
+                    const upBands = [
+                        { label: 'Expiring within 7 days',   cls: 'expiry-critical', quotes: [] },
+                        { label: 'Expiring in 8 – 30 days',  cls: 'expiry-warning',  quotes: [] },
+                        { label: 'Expiring in 31 – 90 days', cls: 'expiry-ok',       quotes: [] },
+                    ];
+                    upcoming.forEach(q => {
+                        const d = q.days_remaining;
+                        if (d <= 7)       upBands[0].quotes.push(q);
+                        else if (d <= 30) upBands[1].quotes.push(q);
+                        else              upBands[2].quotes.push(q);
+                    });
+                    upcomingInner = upBands.filter(b => b.quotes.length).map(b => `
                         <div class="expiry-band">
                             <div class="expiry-band-header ${b.cls}">
                                 <span class="expiry-band-label">${b.label}</span>
                                 <span class="expiry-band-count">${b.quotes.length} quote${b.quotes.length !== 1 ? 's' : ''}</span>
                             </div>
                             <div class="quotes-grid-mini">
-                                ${b.quotes.map(q => expiryCardHtml(q, b.cls)).join('')}
+                                ${b.quotes.map(q => expiryCardHtml(q, b.cls, false)).join('')}
                             </div>
-                        </div>`)
-                    .join('');
+                        </div>`).join('');
+                }
+
+                // ── Expired bands ──
+                if (expired.length === 0) {
+                    expiredInner = '<div class="expiry-empty">No quotes expired in the last 120 days.</div>';
+                } else {
+                    const exBands = [
+                        { label: 'Expired within last 7 days',  cls: 'expiry-critical', quotes: [] },
+                        { label: 'Expired 8 – 30 days ago',     cls: 'expiry-warning',  quotes: [] },
+                        { label: 'Expired 31 – 120 days ago',   cls: 'expiry-ok',       quotes: [] },
+                    ];
+                    expired.forEach(q => {
+                        const d = Math.abs(q.days_remaining);
+                        if (d <= 7)       exBands[0].quotes.push(q);
+                        else if (d <= 30) exBands[1].quotes.push(q);
+                        else              exBands[2].quotes.push(q);
+                    });
+                    expiredInner = exBands.filter(b => b.quotes.length).map(b => `
+                        <div class="expiry-band">
+                            <div class="expiry-band-header ${b.cls}">
+                                <span class="expiry-band-label">${b.label}</span>
+                                <span class="expiry-band-count">${b.quotes.length} quote${b.quotes.length !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div class="quotes-grid-mini">
+                                ${b.quotes.map(q => expiryCardHtml(q, b.cls, true)).join('')}
+                            </div>
+                        </div>`).join('');
+                }
+
+                content.innerHTML = `
+                    <div class="expiry-dashboard">
+                        <div class="expiry-dashboard-section">
+                            <div class="expiry-section-header">
+                                <h2>Upcoming Expirations</h2>
+                                <span class="expiry-section-count">${upcoming.length} quote${upcoming.length !== 1 ? 's' : ''} in next 90 days</span>
+                            </div>
+                            ${upcomingInner}
+                        </div>
+                        <div class="expiry-dashboard-section expiry-dashboard-section-expired">
+                            <div class="expiry-section-header expiry-section-header-expired">
+                                <h2>Recently Expired</h2>
+                                <span class="expiry-section-count">${expired.length} quote${expired.length !== 1 ? 's' : ''} in last 120 days</span>
+                            </div>
+                            ${expiredInner}
+                        </div>
+                    </div>`;
 
             } catch (e) {
                 content.innerHTML = `<div class="error">Error loading expiry data: ${_esc(e.message)}</div>`;
             }
         }
 
-        function expiryCardHtml(q, bandCls) {
-            const days = q.days_remaining;
-            const dayLabel = days === 0 ? 'Expires today'
-                           : days === 1 ? 'Expires tomorrow'
-                           : `Expires in ${days} days`;
+        function expiryCardHtml(q, bandCls, isExpired) {
+            const days = Math.abs(q.days_remaining);
+            let dayLabel;
+            if (isExpired) {
+                dayLabel = days === 0 ? 'Expired today'
+                         : days === 1 ? 'Expired 1 day ago'
+                         : `Expired ${days} days ago`;
+            } else {
+                dayLabel = days === 0 ? 'Expires today'
+                         : days === 1 ? 'Expires tomorrow'
+                         : `Expires in ${days} days`;
+            }
             const amount = q.total_amount
                 ? '$' + parseFloat(q.total_amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})
                 : '—';
@@ -991,11 +1044,11 @@
                 const data = await res.json();
                 const badge = document.getElementById('expiryCount');
                 if (!badge) return;
-                if (data.length) {
-                    badge.textContent = data.length;
+                const upcoming = data.upcoming || [];
+                if (upcoming.length) {
+                    badge.textContent = upcoming.length;
                     badge.style.display = '';
-                    // Highlight urgent (≤7 days) in red
-                    const urgent = data.filter(q => q.days_remaining <= 7).length;
+                    const urgent = upcoming.filter(q => q.days_remaining <= 7).length;
                     badge.classList.toggle('nav-count-urgent', urgent > 0);
                 } else {
                     badge.style.display = 'none';
