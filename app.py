@@ -1904,6 +1904,48 @@ def api_config_price_history(config_id):
 
 
 # =============================================================================
+# EXPIRY DASHBOARD
+# =============================================================================
+
+@app.route('/api/reports/expiry')
+def api_expiry_dashboard():
+    """
+    Return all active quotes with an expiry_date within the next 90 days,
+    annotated with days_remaining. Sorted soonest first.
+    Quotes already expired (days_remaining < 0) are excluded.
+    """
+    db = get_db()
+    try:
+        rows = db.execute("""
+            SELECT
+                q.id,
+                q.quote_id,
+                q.vendor,
+                q.customer_name,
+                q.quote_date,
+                q.expiry_date,
+                q.total_amount,
+                q.tenant_name,
+                q.project_name,
+                q.ica,
+                q.description,
+                CAST(julianday(q.expiry_date) - julianday('now') AS INTEGER) AS days_remaining
+            FROM quotes q
+            WHERE q.status != 'archived'
+              AND q.expiry_date IS NOT NULL
+              AND q.expiry_date != ''
+              AND julianday(q.expiry_date) >= julianday('now')
+              AND julianday(q.expiry_date) <= julianday('now', '+90 days')
+            ORDER BY q.expiry_date ASC
+        """).fetchall()
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+
+# =============================================================================
 # VENDOR SCORECARD
 # =============================================================================
 
