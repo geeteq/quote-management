@@ -52,12 +52,6 @@
                 <div class="nav-section">
                     <h2 class="nav-tree-header">Quotes</h2>
 
-                    <!-- Dashboard / Scorecard -->
-                    <div class="nav-item" id="navDashboard" onclick="showDashboard()">
-                        <span class="nav-icon">📊</span>
-                        <span class="nav-label">Dashboard</span>
-                    </div>
-
                     <!-- Unassigned Quotes -->
                     <div class="nav-item" onclick="loadUnassignedQuotes()">
                         <span class="nav-icon">📄</span>
@@ -68,6 +62,14 @@
                     <!-- Tenants/Projects Tree -->
                     <div id="navigationTree">
                         <div class="nav-loading">Loading...</div>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <h2 class="nav-tree-header">Reports</h2>
+                    <div class="nav-item" id="navVendorScorecard" onclick="loadScorecardView()">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-label">Vendor Scorecards</span>
                     </div>
                 </div>
             </nav>
@@ -109,16 +111,6 @@
                                    autocomplete="off">
                         </div>
                         <p class="welcome-search-hint" id="searchHint">Search across all quotes</p>
-                    </div>
-                    <!-- Vendor Scorecard -->
-                    <div class="scorecard-section" id="scorecardSection">
-                        <div class="scorecard-header">
-                            <span class="scorecard-title">Vendor Scorecard</span>
-                            <span class="scorecard-subtitle">Based on all active quotes</span>
-                        </div>
-                        <div class="scorecard-grid" id="scorecardGrid">
-                            <div class="scorecard-loading">Loading scorecard…</div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -806,36 +798,43 @@
         }
 
         // Initialize
-        let _welcomeHtml = '';
         document.addEventListener('DOMContentLoaded', () => {
-            _welcomeHtml = document.getElementById('quotesContent').innerHTML;
             loadNavigationTree();
             loadTenantsForUpload();
-            loadScorecard();
         });
 
         // ── Vendor Scorecard ──────────────────────────────────────────────────
-        function showDashboard() {
-            selectedProjectId = null;
+        function _clearNavActive() {
             document.querySelectorAll('.nav-project-header, .nav-vendor').forEach(el => el.classList.remove('active'));
-            document.getElementById('contentTitle').textContent = 'Welcome';
-            document.getElementById('contentSubtitle').textContent = 'Select a project to view quotes';
-            document.getElementById('quotesContent').innerHTML = _welcomeHtml;
-            loadScorecard();
+            document.getElementById('navVendorScorecard')?.classList.remove('active');
         }
 
-        async function loadScorecard() {
-            const grid = document.getElementById('scorecardGrid');
-            if (!grid) return;
+        async function loadScorecardView() {
+            selectedProjectId = null;
+            _clearNavActive();
+            document.getElementById('navVendorScorecard').classList.add('active');
+            document.getElementById('contentTitle').textContent = 'Vendor Scorecards';
+            document.getElementById('contentSubtitle').textContent = 'Aggregate performance stats across all active quotes';
+
+            const content = document.getElementById('quotesContent');
+            content.innerHTML = `
+                <div class="scorecard-section">
+                    <div class="scorecard-grid" id="scorecardGrid">
+                        <div class="scorecard-loading">Loading scorecard…</div>
+                    </div>
+                </div>`;
+
             try {
                 const res  = await fetch(`${BASE}/api/scorecard`);
                 const data = await res.json();
+                const grid = document.getElementById('scorecardGrid');
                 if (!data.length) {
                     grid.innerHTML = '<p class="scorecard-empty">No quote data yet.</p>';
                     return;
                 }
                 grid.innerHTML = data.map(v => renderScorecardCard(v)).join('');
             } catch (e) {
+                const grid = document.getElementById('scorecardGrid');
                 if (grid) grid.innerHTML = '<p class="scorecard-empty">Could not load scorecard.</p>';
             }
         }
@@ -1008,8 +1007,7 @@
             selectedProjectId = projectId;
             clearSelection();
 
-            document.querySelectorAll('.nav-project-header').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-vendor').forEach(el => el.classList.remove('active'));
+            _clearNavActive();
             document.getElementById(`project-header-${projectId}`)?.classList.add('active');
 
             document.getElementById('contentTitle').textContent = projectName;
@@ -1037,8 +1035,7 @@
             selectedProjectId = projectId;
             clearSelection();
 
-            document.querySelectorAll('.nav-project-header').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-vendor').forEach(el => el.classList.remove('active'));
+            _clearNavActive();
             document.getElementById(`vendor-${projectId}-${vendor}`)?.classList.add('active');
 
             document.getElementById('contentTitle').textContent = `${projectName} — ${vendor}`;
@@ -1596,8 +1593,7 @@
         async function loadUnassignedQuotes() {
             selectedProjectId = null;
             clearSelection();
-            document.querySelectorAll('.nav-project-header').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-vendor').forEach(el => el.classList.remove('active'));
+            _clearNavActive();
 
             document.getElementById('contentTitle').textContent = 'Unassigned Quotes';
             document.getElementById('contentSubtitle').textContent = 'Quotes not assigned to any project';
