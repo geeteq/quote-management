@@ -1408,8 +1408,10 @@ def admin_quotes():
     """List all quotes in the system."""
     db = get_db()
     quotes = db.execute("""
-        SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-               total_amount, currency, tenant_name, project_name, ica, uploaded_at, status, po_comments
+        SELECT id, quote_id, vendor, quote_date, expiry_date,
+               total_amount, currency, quote_items,
+               CASE WHEN quote_items > 0 THEN ROUND(CAST(total_amount AS REAL) / quote_items, 2) ELSE NULL END AS unit_cost,
+               tenant_name, project_name, ica, uploaded_at, status, po_comments
         FROM quotes
         ORDER BY uploaded_at DESC
     """).fetchall()

@@ -17,7 +17,7 @@
         {% if quotes %}
         <div class="components-toolbar">
             <input type="search" id="quotesSearch" class="admin-search-input"
-                   placeholder="Search by quote ID, vendor, customer, tenant, project, ICA…">
+                   placeholder="Search by quote ID, vendor, tenant, project, ICA…">
             <span class="components-summary-stat" id="quotesSearchCount"></span>
         </div>
 
@@ -27,10 +27,11 @@
                     <tr>
                         <th>Quote ID</th>
                         <th>Vendor</th>
-                        <th>Customer</th>
                         <th>Date</th>
                         <th>Expiry</th>
-                        <th>Total</th>
+                        <th>Quote Total</th>
+                        <th>Unit Cost</th>
+                        <th>Units</th>
                         <th>Tenant</th>
                         <th>Project</th>
                         <th>ICA</th>
@@ -46,10 +47,11 @@
                         <td>
                             <span class="vendor-pill vendor-{{ q.vendor|lower }}">{{ q.vendor }}</span>
                         </td>
-                        <td>{{ q.customer_name or '—' }}</td>
                         <td>{{ q.quote_date or '—' }}</td>
                         <td>{{ q.expiry_date or '—' }}</td>
                         <td class="amount-cell">${{ '{:,.2f}'.format(q.total_amount) if q.total_amount else '—' }}</td>
+                        <td class="amount-cell">${{ '{:,.2f}'.format(q.unit_cost) if q.unit_cost else '—' }}</td>
+                        <td>{{ q.quote_items if q.quote_items else '—' }}</td>
                         <td>{{ q.tenant_name or '—' }}</td>
                         <td>{{ q.project_name or '—' }}</td>
                         <td>{{ q.ica or '—' }}</td>
