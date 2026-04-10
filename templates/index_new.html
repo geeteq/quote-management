@@ -1627,37 +1627,44 @@
                     return;
                 }
 
+                // Collect all unique dates across all vendors, sorted
+                const allDates = [...new Set(
+                    data.series.flatMap(s => s.points.map(p => p.quote_date))
+                )].sort();
+
+                // Index point data by date per vendor for bar chart alignment
                 const datasets = data.series.map(s => {
-                    const col = vendorColor(s.vendor);
+                    const col     = vendorColor(s.vendor);
+                    const byDate  = Object.fromEntries(s.points.map(p => [p.quote_date, p]));
                     return {
                         label:           s.vendor,
-                        data:            s.points.map(p => ({ x: p.quote_date, y: p.unit_cost, ref: p.quote_ref, score: p.score, items: p.quote_items })),
+                        data:            allDates.map(d => {
+                            const p = byDate[d];
+                            return p ? { x: d, y: p.unit_cost, ref: p.quote_ref, score: p.score, items: p.quote_items } : null;
+                        }),
+                        backgroundColor: col.line,
                         borderColor:     col.line,
-                        backgroundColor: col.fill,
-                        pointBackgroundColor: col.line,
-                        pointRadius:     5,
-                        pointHoverRadius: 7,
-                        tension:         0.3,
-                        fill:            true,
+                        borderRadius:    4,
+                        borderSkipped:   false,
                     };
                 });
 
                 canvas.style.display = '';
                 hint.style.display   = '';
                 _priceChart = new Chart(canvas, {
-                    type: 'line',
-                    data: { datasets },
+                    type: 'bar',
+                    data: { labels: allDates, datasets },
                     options: {
                         responsive: true,
-                        interaction: { mode: 'point' },
+                        interaction: { mode: 'index', intersect: false },
                         plugins: {
                             legend: { position: 'top' },
                             tooltip: {
                                 callbacks: {
-                                    title: items => items[0].raw.x || '',
                                     label: item => {
                                         const d = item.raw;
-                                        const label = d.items ? `unit cost` : `total`;
+                                        if (!d) return null;
+                                        const label = d.items ? 'unit cost' : 'total';
                                         return ` ${item.dataset.label}  $${Number(d.y).toLocaleString('en-US', {minimumFractionDigits:2})} ${label}  (${d.ref}, ${d.score}% match)`;
                                     }
                                 }
@@ -1665,7 +1672,6 @@
                         },
                         scales: {
                             x: {
-                                type: 'category',
                                 title: { display: true, text: 'Quote Date' },
                                 ticks: { maxRotation: 45 }
                             },
