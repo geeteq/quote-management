@@ -3,6 +3,56 @@ import re
 from typing import Dict, List, Tuple
 from datetime import datetime
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+CATEGORY_PATTERNS = {
+    'CPU': [
+        r'xeon', r'cpu', r'processor', r'intel.*\d{4}[a-z+]*',
+        r'amd.*epyc', r'ryzen', r'heatsink.*cpu',
+    ],
+    'Memory': [
+        r'memory', r'ram', r'dimm', r'\d+gb.*pc5', r'\d+gb.*ddr',
+        r'smart kit.*gb', r'\d+gb\s+rdimm', r'rdimm.*\d+gb',
+    ],
+    'Disk': [
+        r'ssd', r'hdd', r'disk', r'drive', r'storage.*\d+gb',
+        r'nvme', r'sata', r'\d+tb', r'm\.2.*\d+gb', r'boss.*\d+gb',
+    ],
+    'Network Card': [
+        r'network', r'nic', r'ethernet', r'gbe', r'sfp', r'rj45',
+        r'adapter.*gbe', r'\d+gbe', r'base-t', r'e810', r'broadcom.*\d+.*port',
+        r'lom', r'ocp nic',
+    ],
+    'Power Supply': [
+        r'power supply', r'psu', r'power.*\d+w', r'\d+w.*power',
+        r'pwr spl', r'flexslot.*pwr', r'hot-plug.*power', r'\d+w.*-?\d*vdc',
+    ],
+    'GPU': [
+        r'gpu', r'graphics', r'nvidia', r'amd.*radeon', r'tesla',
+        r'quadro', r'geforce',
+    ],
+    'Storage Controller': [
+        r'storage.*controller', r'storage.*cntlr', r'raid', r'hba',
+        r'mr\d+', r'smart array', r'boss.*controller', r'boss-n\d+',
+    ],
+    'Additional Hardware': [],
+}
+
+
+def categorize_component(description: str) -> str:
+    """Categorize a component by its description string."""
+    desc_lower = (description or '').lower()
+    for category, patterns in CATEGORY_PATTERNS.items():
+        if category == 'Additional Hardware':
+            continue
+        for pattern in patterns:
+            if re.search(pattern, desc_lower):
+                return category
+    return 'Additional Hardware'
+
 class QuoteParser:
     """Parse vendor PDF quotes and extract structured data."""
 
@@ -441,19 +491,7 @@ class QuoteParser:
 
     def _categorize(self, description: str) -> str:
         """Categorize component based on description."""
-        description_lower = description.lower()
-
-        # Check each category's patterns
-        for category, patterns in self.CATEGORY_PATTERNS.items():
-            if category == 'Additional Hardware':
-                continue
-
-            for pattern in patterns:
-                if re.search(pattern, description_lower):
-                    return category
-
-        # Default to Additional Hardware
-        return 'Additional Hardware'
+        return categorize_component(description)
 
     def extract_component_details(self, line_item: Dict) -> Dict:
         """Extract detailed component specifications."""
@@ -696,3 +734,215 @@ class QuoteParser:
             specs['voltage'] = '48VDC'
 
         return specs
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Dell Excel (.xlsx) parser
+# ─────────────────────────────────────────────────────────────────────────────
+
+class DellExcelParser:
+    """
+    Parse Dell quote Excel (.xlsx) files.
+
+    Expected layout (0-based column indices):
+      Header rows  — label in col 1 (B), value in col 4 (E)
+      Detail table — Description col 1, SKU col 12, Qty col 14,
+                     Unit Price col 17, Subtotal col 19
+    """
+
+    # Components that carry no distinct hardware value — filter from line items
+    FILTER_PATTERNS = [
+        r'^No\s+',                       # "No Hard Drive", "No Controller", …
+        r'Disabled$',
+        r'NOT Installed',
+        r'UEFI BIOS',
+        r'Performance Optimized',
+        r'Performance BIOS',
+        r'No\s+Energy\s+Star',
+        r'No\s+Quick\s+Sync',
+        r'No\s+Media',
+        r'No\s+Operating\s+System',
+        r'No\s+Systems\s+Documentation',
+        r'No\s+Cables',
+        r'Riser\s+Config',
+        r'.*RDIMMs$',                    # Generic "5600MT/s RDIMMs" config line
+        r'Marking',                      # CE/CCC marking lines
+        r'Shipping',                     # Shipping items / materials
+        r'iDRAC.*Password',
+        r'iDRAC.*Manager',
+        r'Connectivity\s+(Client|Module)',
+        r'Dell\s+Connectivity',
+        r'Trusted\s+Platform\s+Module',
+        r'Motherboard',
+        r'Chassis\s+with',
+        r'Backplane',
+        r'Power\s+Cord',
+        r'Bezel',
+        r'Rails',
+        r'Secured\s+Component\s+Verification',
+        r'Group\s+Manager',
+        r'C\d+,\s+No\s+RAID',            # "C30, No RAID for NVME chassis"
+        r'Smart\s+Flow',
+        r'Rear\s+Storage',
+        r'Cables.*Bracket',              # "BOSS Cables, Bracket for …"
+        r'Bracket.*Cables',
+    ]
+
+    def __init__(self, file_path: str):
+        self.file_path = file_path
+        self.quote_data: Dict = {}
+        self.line_items: List = []
+
+    # ── Public ────────────────────────────────────────────────────────────────
+
+    def parse(self) -> Dict:
+        import openpyxl
+        wb = openpyxl.load_workbook(self.file_path, data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+
+        self.quote_data['vendor']   = 'Dell'
+        self.quote_data['currency'] = 'CAD'
+
+        self._parse_header(rows)
+        self._parse_line_items(rows)
+
+        return {
+            'quote':      self.quote_data,
+            'line_items': self.line_items,
+        }
+
+    # ── Private helpers ───────────────────────────────────────────────────────
+
+    @staticmethod
+    def _cell(row, idx, default=None):
+        try:
+            v = row[idx]
+            if v is None:
+                return default
+            s = str(v).strip()
+            return s if s else default
+        except IndexError:
+            return default
+
+    @staticmethod
+    def _parse_amount(s) -> float | None:
+        if s is None:
+            return None
+        cleaned = str(s).strip().lstrip('$').replace(',', '').strip()
+        try:
+            v = float(cleaned)
+            return v if v > 0 else None
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _parse_date(s) -> str | None:
+        """Normalise Dell Excel date strings like 'Apr. 6, 2026' → 'YYYY-MM-DD'."""
+        if not s:
+            return None
+        # Strip trailing period from abbreviated month: 'Apr.' → 'Apr'
+        s = re.sub(r'\b([A-Za-z]{3,})\.', r'\1', str(s).strip())
+        for fmt in ('%b %d, %Y', '%B %d, %Y', '%m/%d/%Y', '%Y-%m-%d', '%d-%b-%Y'):
+            try:
+                return datetime.strptime(s, fmt).strftime('%Y-%m-%d')
+            except ValueError:
+                continue
+        return s  # return as-is if no format matched
+
+    def _parse_header(self, rows):
+        """
+        Scan all rows for labelled header fields.
+        Label is in column B (idx 1), value in column E (idx 4).
+        """
+        LABEL_MAP = {
+            'Quote No:':      ('quote_id',      None),
+            'Company Name:':  ('customer_name', None),
+            'Quoted On:':     ('quote_date',    self._parse_date),
+            'Expires by:':    ('expiry_date',   self._parse_date),
+        }
+
+        for row in rows:
+            label = self._cell(row, 1)
+            value = self._cell(row, 4)
+            if not label or not value:
+                continue
+
+            if label in LABEL_MAP:
+                field, transform = LABEL_MAP[label]
+                self.quote_data[field] = transform(value) if transform else value
+
+            elif label == 'Total (CAD):':
+                # Prefer subtotal row (col 18) when we're inside the summary table;
+                # fall back to the header-area total (col 4).
+                amt = self._parse_amount(self._cell(row, 18)) \
+                   or self._parse_amount(value)
+                if amt and 'total_amount' not in self.quote_data:
+                    self.quote_data['total_amount'] = amt
+
+        # Subtotal row has label in col 13 (N): look for it explicitly
+        for row in rows:
+            if self._cell(row, 13) == 'Subtotal':
+                amt = self._parse_amount(self._cell(row, 18))
+                if amt:
+                    # Use subtotal (pre-tax) for consistent price comparison
+                    self.quote_data['total_amount'] = amt
+                break
+
+    def _parse_line_items(self, rows):
+        """
+        Find the detail table (header row has 'Description' / 'SKU'),
+        then extract one line item per component row.
+        """
+        in_section = False
+        line_counter = 0
+        seen_skus: set = set()
+
+        STOP_PHRASES = {'Need Help?', 'Dell Quote Terms', 'Connect with Dell:',
+                        'Please do not reply'}
+
+        for row in rows:
+            desc = self._cell(row, 1)
+            sku  = self._cell(row, 12)
+
+            # Locate detail-table header
+            if desc == 'Description' and sku == 'SKU':
+                in_section = True
+                continue
+
+            if not in_section:
+                continue
+
+            # Stop at footer boilerplate
+            if desc and any(p in desc for p in STOP_PHRASES):
+                break
+
+            # Need both description and a SKU-like value
+            if not desc or not sku:
+                continue
+            # SKU pattern: XXX-XXXXX  (letters/digits, hyphen, letters/digits)
+            if not re.match(r'^[A-Z0-9]{2,}-[A-Z0-9]{3,}$', sku, re.I):
+                continue
+
+            # Deduplicate by SKU
+            if sku in seen_skus:
+                continue
+
+            # Apply filter patterns
+            if any(re.search(p, desc, re.I) for p in self.FILTER_PATTERNS):
+                continue
+
+            seen_skus.add(sku)
+
+            qty_raw = self._cell(row, 14)
+            qty = int(qty_raw) if qty_raw and str(qty_raw).isdigit() else 1
+
+            line_counter += 1
+            self.line_items.append({
+                'line_no':        f'D{line_counter:03d}',
+                'quantity':       qty,
+                'product_number': sku,
+                'description':    desc,
+                'delivery_time':  'N/A',
+                'category':       categorize_component(desc),
+            })

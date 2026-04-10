@@ -5,7 +5,7 @@ import re
 import logging
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from werkzeug.utils import secure_filename
-from parser import QuoteParser
+from parser import QuoteParser, DellExcelParser
 from component_registry import ComponentRegistry
 from datetime import datetime
 
@@ -89,7 +89,7 @@ def inject_base_href():
     return {'base_href': BASE_HREF, 'git_branch': GIT_BRANCH, 'static_version': STATIC_VERSION}
 
 
-ALLOWED_EXTENSIONS = {'pdf'}
+ALLOWED_EXTENSIONS = {'pdf', 'xlsx', 'xls'}
 
 
 def allowed_file(filename):
@@ -901,7 +901,7 @@ def view_quote(quote_id):
 
 @app.route('/upload', methods=['POST'])
 def upload_quote():
-    """Upload and parse PDF quote."""
+    """Upload and parse a PDF or Dell Excel (.xlsx) quote."""
     logger.info(f"Upload request received from {request.remote_addr}")
 
     if 'file' not in request.files:
@@ -915,7 +915,9 @@ def upload_quote():
 
     if not allowed_file(file.filename):
         logger.warning(f"Upload rejected: Invalid file type - {file.filename}")
-        return jsonify({'error': 'Only PDF files allowed'}), 400
+        return jsonify({'error': 'Only PDF and Excel (.xlsx) files allowed'}), 400
+
+    ext = file.filename.rsplit('.', 1)[1].lower()
 
     logger.info(f"Processing upload: {file.filename}")
 
@@ -955,17 +957,21 @@ def upload_quote():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
-        # Validate PDF security
-        logger.info(f"Validating PDF: {filename}")
-        is_valid, error_msg = validate_pdf(filepath)
-        if not is_valid:
-            logger.warning(f"PDF validation failed for {filename}: {error_msg}")
-            os.remove(filepath)  # Clean up invalid file
-            return jsonify({'error': f'PDF validation failed: {error_msg}'}), 400
+        if ext == 'pdf':
+            # Validate PDF security
+            logger.info(f"Validating PDF: {filename}")
+            is_valid, error_msg = validate_pdf(filepath)
+            if not is_valid:
+                logger.warning(f"PDF validation failed for {filename}: {error_msg}")
+                os.remove(filepath)
+                return jsonify({'error': f'PDF validation failed: {error_msg}'}), 400
+            logger.info(f"Parsing PDF: {filename}")
+            parser = QuoteParser(filepath)
+        else:
+            # Excel quote (Dell format)
+            logger.info(f"Parsing Excel quote: {filename}")
+            parser = DellExcelParser(filepath)
 
-        # Parse PDF
-        logger.info(f"Parsing PDF: {filename}")
-        parser = QuoteParser(filepath)
         result = parser.parse()
         logger.info(f"Parsed {len(result.get('line_items', []))} line items from {filename}")
 
