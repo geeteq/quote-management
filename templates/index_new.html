@@ -154,6 +154,10 @@
                         <label for="ica">ICA</label>
                         <input type="text" id="ica" name="ica" placeholder="Enter ICA">
                     </div>
+                    <div class="form-group">
+                        <label for="quoteItems">System Quantity</label>
+                        <input type="number" id="quoteItems" name="quote_items" min="1" step="1" placeholder="Number of units in this quote">
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="po_comments">PO Comments</label>
@@ -1731,13 +1735,18 @@
                         ${quote.description ? `<div class="metadata-item"><span class="metadata-label">Description:</span><span class="metadata-value">${_esc(quote.description)}</span></div>` : ''}
                         ${quote.po_comments ? `<div class="metadata-item"><span class="metadata-label">PO Comments:</span><span class="metadata-value">${_esc(quote.po_comments)}</span></div>` : ''}
                         <div class="metadata-item"><span class="metadata-label">Config:</span><span class="metadata-value">${quote.config_name ? _esc(quote.config_name) : 'No config'}</span></div>
+                        ${quote.total_amount ? `<div class="metadata-item"><span class="metadata-label">Total quote price:</span><span class="metadata-value">$${parseFloat(quote.total_amount).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span></div>` : ''}
+                        ${quote.quote_items ? `<div class="metadata-item"><span class="metadata-label">Total quote items:</span><span class="metadata-value">${quote.quote_items}</span></div>` : ''}
                     </div>
                     <div class="quote-footer">
                         <button class="btn-archive" onclick="event.stopPropagation(); archiveQuote(${quote.id})" title="Archive quote">
                             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 2a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm0 5a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm5 1v1H6v1h4V9h-1V8H6zm0 0" fill="currentColor"/></svg>
                             Archive
                         </button>
-                        <span class="price">$${parseFloat(quote.total_amount).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+                        ${quote.total_amount && quote.quote_items && quote.quote_items > 0
+                            ? `<span class="price unit-cost">Unit cost: $${(parseFloat(quote.total_amount) / quote.quote_items).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>`
+                            : `<span class="price">$${parseFloat(quote.total_amount || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>`
+                        }
                     </div>
                 </div>`;
             }

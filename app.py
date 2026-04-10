@@ -572,12 +572,19 @@ def migrate_db():
             db.commit()
             logger.info(f"M20: repathed {srv_repathed} QuickSpec PDF path(s) to current DATA_DIR")
 
+        # ── M21: add quote_items column ───────────────────────────────────────
+        cols = [r['name'] for r in db.execute("PRAGMA table_info(quotes)").fetchall()]
+        if 'quote_items' not in cols:
+            db.execute("ALTER TABLE quotes ADD COLUMN quote_items INTEGER")
+            db.commit()
+            logger.info("M21: quotes.quote_items column added")
+
     finally:
         db.execute("PRAGMA foreign_keys = ON")
         db.close()
 
 
-def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_id=None, tenant_name='', project_name='', ica='', po_comments='', config_id=None):
+def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_id=None, tenant_name='', project_name='', ica='', po_comments='', config_id=None, quote_items=None):
     """Save parsed quote data to database."""
     logger.debug(f"Saving quote: {quote_data.get('quote_id')} with {len(line_items)} items")
 
@@ -597,8 +604,8 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
         cursor.execute('''
             INSERT INTO quotes (quote_id, vendor, customer_name, quote_date, expiry_date,
                                total_amount, currency, description, pdf_path,
-                               tenant_id, project_id, tenant_name, project_name, ica, po_comments, config_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               tenant_id, project_id, tenant_name, project_name, ica, po_comments, config_id, quote_items)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             quote_id,
             quote_data.get('vendor'),
@@ -615,7 +622,8 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
             project_name,
             ica,
             po_comments[:255] if po_comments else None,
-            config_id
+            config_id,
+            quote_items
         ))
 
         quote_db_id = cursor.lastrowid
@@ -910,10 +918,12 @@ def upload_quote():
         ica = request.form.get('ica', '').strip()
         po_comments = request.form.get('po_comments', '').strip()
         config_id_raw = request.form.get('config_id', '').strip()
+        quote_items_raw = request.form.get('quote_items', '').strip()
 
         tenant_id = int(tenant_id) if tenant_id else None
         project_id = int(project_id) if project_id else None
         config_id = int(config_id_raw) if config_id_raw else None
+        quote_items = int(quote_items_raw) if quote_items_raw and quote_items_raw.isdigit() else None
 
         # Look up tenant/project names for the filename
         db = get_db()
@@ -963,7 +973,8 @@ def upload_quote():
             project_name=project_name,
             ica=ica,
             po_comments=po_comments,
-            config_id=config_id
+            config_id=config_id,
+            quote_items=quote_items
         )
 
         logger.info(f"Quote saved successfully with ID: {quote_db_id}")
@@ -1313,7 +1324,7 @@ def api_project_quotes(project_id):
     quotes = db.execute('''
         SELECT q.id, q.quote_id, q.vendor, q.customer_name, q.quote_date, q.expiry_date,
                q.total_amount, q.currency, q.description, q.tenant_name, q.project_name,
-               q.ica, q.status, q.po_comments, q.uploaded_at, q.config_id,
+               q.ica, q.status, q.po_comments, q.uploaded_at, q.config_id, q.quote_items,
                bc.config_name
         FROM quotes q
         LEFT JOIN base_configs bc ON bc.id = q.config_id
@@ -1331,7 +1342,7 @@ def api_unassigned_quotes():
     quotes = db.execute('''
         SELECT q.id, q.quote_id, q.vendor, q.customer_name, q.quote_date, q.expiry_date,
                q.total_amount, q.currency, q.description, q.tenant_name, q.project_name,
-               q.ica, q.status, q.po_comments, q.uploaded_at, q.config_id,
+               q.ica, q.status, q.po_comments, q.uploaded_at, q.config_id, q.quote_items,
                bc.config_name
         FROM quotes q
         LEFT JOIN base_configs bc ON bc.id = q.config_id

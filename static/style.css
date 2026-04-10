@@ -276,6 +276,10 @@ button:hover {
     font-weight: 700;
     color: #667eea;
 }
+.unit-cost {
+    font-size: 0.95em;
+    color: #059669;
+}
 
 /* Compare Feature Styles */
 .quote-preview-card {
