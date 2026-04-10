@@ -1658,17 +1658,21 @@
                         label:           s.vendor,
                         data:            values,
                         _meta:           meta,
-                        backgroundColor: col.line,
                         borderColor:     col.line,
-                        borderRadius:    4,
-                        borderSkipped:   false,
+                        backgroundColor: col.fill,
+                        pointBackgroundColor: col.line,
+                        pointRadius:     5,
+                        pointHoverRadius: 7,
+                        tension:         0.3,
+                        fill:            false,
+                        spanGaps:        true,
                     };
                 });
 
                 canvas.style.display = '';
                 hint.style.display   = '';
                 _priceChart = new Chart(canvas, {
-                    type: 'bar',
+                    type: 'line',
                     data: { labels: allDates, datasets },
                     options: {
                         responsive: true,
