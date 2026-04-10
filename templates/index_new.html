@@ -180,66 +180,53 @@
             <div id="configBasicForm" style="display:none;">
                 <div class="form-group">
                     <label>Config Name <span class="required">*</span></label>
-                    <div class="comp-ac-wrap">
-                        <input type="text" id="basicConfigName" placeholder="e.g., Standard 2-Socket Server or search a server model…" autocomplete="off">
-                        <div class="comp-ac-dropdown" id="basicConfigName-ac"></div>
-                    </div>
-                </div>
-                <div class="server-lock-banner" id="serverLockBanner" style="display:none;">
-                    <span class="server-lock-icon">&#9729;</span>
-                    <span id="serverLockLabel"></span>
-                    <button class="server-lock-clear" onclick="clearServerLock()" title="Remove server restriction">&times; Clear</button>
+                    <input type="text" id="basicConfigName" placeholder="e.g., Standard 2-Socket Server">
                 </div>
                 <div class="basic-config-grid">
                     <div class="form-group basic-comp-row">
                         <label>CPU</label>
                         <div class="basic-comp-inputs">
-                            <div class="comp-ac-wrap">
-                                <input type="text" id="basicCPU" placeholder="e.g., Intel Xeon Gold 6338 32-Core" autocomplete="off">
-                                <div class="comp-ac-dropdown" id="basicCPU-ac"></div>
-                            </div>
+                            <select id="basicCPUVendor" class="basic-vendor-select">
+                                <option value="Intel">Intel</option>
+                                <option value="AMD">AMD</option>
+                            </select>
+                            <input type="text" id="basicCPUDesc" placeholder="e.g., Xeon Gold 6342 32-core 2.8GHz" style="flex:1;">
                             <input type="number" id="basicCPUQty" class="comp-qty" value="2" min="1" max="255" title="Quantity">
                         </div>
                     </div>
                     <div class="form-group basic-comp-row">
                         <label>Memory</label>
                         <div class="basic-comp-inputs">
-                            <div class="comp-ac-wrap">
-                                <input type="text" id="basicMemory" placeholder="e.g., 512GB DDR5 4800MHz" autocomplete="off">
-                                <div class="comp-ac-dropdown" id="basicMemory-ac"></div>
-                            </div>
-                            <input type="number" id="basicMemoryQty" class="comp-qty" value="1" min="1" max="255" title="Quantity">
+                            <select id="basicMemory" style="flex:1;">
+                                <option value="">— Select —</option>
+                                <option value="256GB RAM">256GB RAM</option>
+                                <option value="512GB RAM">512GB RAM</option>
+                                <option value="1TB RAM">1TB RAM</option>
+                                <option value="1.5TB RAM">1.5TB RAM</option>
+                                <option value="2TB RAM">2TB RAM</option>
+                            </select>
                         </div>
                     </div>
                     <div class="form-group basic-comp-row">
                         <label>Boot Disk</label>
                         <div class="basic-comp-inputs">
-                            <div class="comp-ac-wrap">
-                                <input type="text" id="basicBootDisk" placeholder="e.g., 2x 480GB SATA SSD" autocomplete="off">
-                                <div class="comp-ac-dropdown" id="basicBootDisk-ac"></div>
-                            </div>
-                            <input type="number" id="basicBootDiskQty" class="comp-qty" value="2" min="1" max="255" title="Quantity">
+                            <input type="text" id="basicBootDisk" value="2x 480GB NVMe" style="flex:1;">
                         </div>
                     </div>
                     <div class="form-group basic-comp-row">
                         <label>Data Disk</label>
                         <div class="basic-comp-inputs">
-                            <div class="comp-ac-wrap">
-                                <input type="text" id="basicDataDisk" placeholder="e.g., 4x 3.84TB NVMe SSD" autocomplete="off">
-                                <div class="comp-ac-dropdown" id="basicDataDisk-ac"></div>
-                            </div>
-                            <input type="number" id="basicDataDiskQty" class="comp-qty" value="1" min="1" max="255" title="Quantity">
+                            <input type="text" id="basicDataDisk" placeholder="e.g., 4x 3.84TB NVMe SSD" maxlength="255" style="flex:1;">
                         </div>
                     </div>
                     <div class="form-group basic-comp-row">
                         <label>Power Supply</label>
                         <div class="basic-comp-inputs">
-                            <select id="basicPSU">
+                            <select id="basicPSU" style="flex:1;">
                                 <option value="">— Select —</option>
                                 <option value="AC">AC</option>
                                 <option value="DC">DC</option>
                             </select>
-                            <input type="number" id="basicPSUQty" class="comp-qty" value="2" min="1" max="255" title="Quantity">
                         </div>
                     </div>
                 </div>
@@ -250,17 +237,20 @@
                     </div>
                     <div class="basic-nic-row">
                         <span class="nic-role-label">Production NIC</span>
-                        <select id="nicProdSelect" class="nic-part-select" disabled>
-                            <option value="">— Lock a server to see NICs —</option>
+                        <select id="basicNicProd" style="flex:1;">
+                            <option value="">— Select —</option>
+                            <option value="2x2x25gbit">2x2x25gbit</option>
+                            <option value="2x4x25gbit">2x4x25gbit</option>
+                            <option value="2x1x100gbit">2x1x100gbit</option>
                         </select>
-                        <input type="number" id="nicProdQty" class="comp-qty" value="1" min="1" max="255" title="Quantity">
                     </div>
                     <div class="basic-nic-row">
                         <span class="nic-role-label">Management NIC</span>
-                        <select id="nicMgmtSelect" class="nic-part-select" disabled>
-                            <option value="">— Lock a server to see NICs —</option>
+                        <select id="basicNicMgmt" style="flex:1;">
+                            <option value="">— Select —</option>
+                            <option value="2x1gbit">2x1gbit</option>
+                            <option value="4x1gbit">4x1gbit</option>
                         </select>
-                        <input type="number" id="nicMgmtQty" class="comp-qty" value="1" min="1" max="255" title="Quantity">
                     </div>
                 </div>
                 <div class="form-actions">
@@ -432,19 +422,16 @@
             document.getElementById('configVendorForm').style.display  = mode === 'vendor' ? 'block' : 'none';
             if (!mode) clearServerLock();
             if (mode === 'basic') {
-                document.getElementById('basicConfigName').value  = '';
-                const cpuInput = document.getElementById('basicCPU');
-                cpuInput.value = '';
-                cpuInput._selectedComp = null;
-                document.getElementById('basicMemory').value      = '';
-                document.getElementById('basicBootDisk').value    = '';
-                document.getElementById('basicDataDisk').value    = '';
-                document.getElementById('basicPSU').value         = '';
-                document.getElementById('nicProdSelect').value    = '';
-                document.getElementById('nicProdQty').value       = '1';
-                document.getElementById('nicMgmtSelect').value    = '';
-                document.getElementById('nicMgmtQty').value       = '1';
-                ensureAcInit();
+                document.getElementById('basicConfigName').value = '';
+                document.getElementById('basicCPUVendor').value  = 'Intel';
+                document.getElementById('basicCPUDesc').value    = '';
+                document.getElementById('basicCPUQty').value     = '2';
+                document.getElementById('basicMemory').value     = '';
+                document.getElementById('basicBootDisk').value   = '2x 480GB NVMe';
+                document.getElementById('basicDataDisk').value   = '';
+                document.getElementById('basicPSU').value        = '';
+                document.getElementById('basicNicProd').value    = '';
+                document.getElementById('basicNicMgmt').value    = '';
             }
             if (mode === 'vendor') {
                 document.getElementById('vendorConfigName').value = '';
@@ -461,61 +448,53 @@
             const name = document.getElementById('basicConfigName').value.trim();
             if (!name) { alert('Config name is required.'); return; }
             const components = [];
-            const freeTextLabels = [];   // components saved without a resolved part number
-            const clamp = id => Math.min(255, Math.max(1, parseInt(document.getElementById(id).value) || 1));
-            const add = (type, valId, qtyId, modelOverride) => {
-                const inp = document.getElementById(valId);
-                const val = inp.value.trim();
-                if (!val) return;
-                const comp = {component_type: type, specs: val, quantity: clamp(qtyId)};
-                // Use _selectedComp if available; otherwise try exact-match in locked server cache
-                let resolved = inp._selectedComp;
-                if (!resolved && _lockedServer) {
-                    const lval = val.toLowerCase();
-                    resolved = (_lockedServer.components[type] || []).find(c =>
-                        (c.part_number  || '').toLowerCase() === lval ||
-                        (c.description  || '').toLowerCase() === lval
-                    ) || null;
-                }
-                if (resolved) {
-                    if (resolved.part_number)  comp.part_number  = resolved.part_number;
-                    if (resolved.model)        comp.model        = resolved.model;
-                    if (resolved.manufacturer) comp.manufacturer = resolved.manufacturer;
-                } else {
-                    freeTextLabels.push(modelOverride || type);
-                }
-                // modelOverride labels role (Boot Disk / Data Disk) but doesn't suppress part_number
-                if (modelOverride) comp.model = modelOverride;
-                components.push(comp);
-            };
-            add('CPU',          'basicCPU',       'basicCPUQty');
-            add('Memory',       'basicMemory',    'basicMemoryQty');
-            add('Disk',         'basicBootDisk',  'basicBootDiskQty', 'Boot Disk');
-            add('Disk',         'basicDataDisk',  'basicDataDiskQty', 'Data Disk');
-            add('Power Supply', 'basicPSU',       'basicPSUQty');
-            // NIC rows (fixed Production + Management)
-            [['Production NIC', 'nicProdSelect', 'nicProdQty'],
-             ['Management NIC',  'nicMgmtSelect', 'nicMgmtQty']].forEach(([role, selId, qtyId]) => {
-                const sel = document.getElementById(selId);
-                const pn  = sel.value;
-                if (!pn) return;
-                const qty = Math.min(255, Math.max(1, parseInt(document.getElementById(qtyId).value) || 1));
-                const opt = sel.selectedOptions[0];
-                components.push({
-                    component_type: 'Network Card',
-                    part_number:    pn,
-                    model:          role,
-                    specs:          opt ? opt.textContent.trim() : null,
-                    quantity:       qty,
-                });
-            });
-            // Capture warning message before submit (modal closes on success)
-            const warnMsg = freeTextLabels.length
-                ? `${freeTextLabels.join(', ')} saved as free text — no part number matched. Use the dropdown for full tracking.`
-                : null;
-            const saved = await _submitConfig(name, components);
-            // Only show warning if save actually succeeded (modal already closed)
-            if (saved && warnMsg) _showToast(warnMsg, 'warn');
+
+            // CPU
+            const cpuVendor = document.getElementById('basicCPUVendor').value;
+            const cpuDesc   = document.getElementById('basicCPUDesc').value.trim();
+            const cpuQty    = Math.min(255, Math.max(1, parseInt(document.getElementById('basicCPUQty').value) || 2));
+            if (cpuDesc) {
+                components.push({component_type: 'CPU', specs: `${cpuVendor} ${cpuDesc}`, model: 'CPU', quantity: cpuQty});
+            }
+
+            // Memory
+            const memory = document.getElementById('basicMemory').value;
+            if (memory) {
+                components.push({component_type: 'Memory', specs: memory, model: memory, quantity: 1});
+            }
+
+            // Boot Disk
+            const bootDisk = document.getElementById('basicBootDisk').value.trim();
+            if (bootDisk) {
+                components.push({component_type: 'Disk', specs: bootDisk, model: 'Boot Disk', quantity: 1});
+            }
+
+            // Data Disk
+            const dataDisk = document.getElementById('basicDataDisk').value.trim();
+            if (dataDisk) {
+                components.push({component_type: 'Disk', specs: dataDisk, model: 'Data Disk', quantity: 1});
+            }
+
+            // Power Supply
+            const psu = document.getElementById('basicPSU').value;
+            if (psu) {
+                components.push({component_type: 'Power Supply', specs: psu, model: psu, quantity: 2});
+            }
+
+            // Production NIC
+            const nicProd = document.getElementById('basicNicProd').value;
+            if (nicProd) {
+                components.push({component_type: 'Network Card', specs: nicProd, model: 'Production NIC', quantity: 1});
+            }
+
+            // Management NIC
+            const nicMgmt = document.getElementById('basicNicMgmt').value;
+            if (nicMgmt) {
+                components.push({component_type: 'Network Card', specs: nicMgmt, model: 'Management NIC', quantity: 1});
+            }
+
+            if (!components.length) { alert('Please fill in at least one component.'); return; }
+            await _submitConfig(name, components);
         }
 
         function _showToast(msg, type) {
@@ -840,14 +819,47 @@
                 return '<div class="nav-empty-projects">No projects</div>';
             }
 
-            return projects.map(project => `
-                <div class="nav-project ${selectedProjectId === project.id ? 'active' : ''}"
-                     onclick="loadProjectQuotes(${project.id}, '${_esc(project.name)}', event)">
-                    <span class="nav-icon">📁</span>
-                    <span class="nav-label">${_esc(project.name)}</span>
-                    <span class="nav-count">${project.quote_count}</span>
-                </div>
-            `).join('');
+            return projects.map(project => {
+                const hasVendors = project.vendors && project.vendors.length > 0;
+                const expandArrow = hasVendors
+                    ? `<span class="nav-expand" id="expand-project-${project.id}" onclick="toggleProject(${project.id}, event)">▶</span>`
+                    : `<span style="width:12px;display:inline-block;"></span>`;
+                const vendorItems = hasVendors ? project.vendors.map(v => `
+                    <div class="nav-vendor" id="vendor-${project.id}-${_esc(v.vendor)}"
+                         onclick="loadVendorQuotes(${project.id}, '${_esc(project.name)}', '${_esc(v.vendor)}', event)">
+                        <span class="nav-icon" style="font-size:13px;">📄</span>
+                        <span class="nav-label">${_esc(v.vendor)}</span>
+                        <span class="nav-count">${v.count}</span>
+                    </div>
+                `).join('') : '';
+                return `
+                <div class="nav-project-wrapper" id="project-wrapper-${project.id}">
+                    <div class="nav-project-header ${selectedProjectId === project.id ? 'active' : ''}"
+                         id="project-header-${project.id}"
+                         onclick="loadProjectQuotes(${project.id}, '${_esc(project.name)}', event)">
+                        ${expandArrow}
+                        <span class="nav-icon">📁</span>
+                        <span class="nav-label">${_esc(project.name)}</span>
+                        <span class="nav-count">${project.quote_count}</span>
+                    </div>
+                    ${hasVendors ? `<div class="nav-project-vendors" id="vendors-${project.id}" style="display:none;">${vendorItems}</div>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        // Toggle project vendor sub-folders
+        function toggleProject(projectId, event) {
+            event.stopPropagation();
+            const vendorsDiv = document.getElementById(`vendors-${projectId}`);
+            const expandIcon = document.getElementById(`expand-project-${projectId}`);
+            if (!vendorsDiv) return;
+            if (vendorsDiv.style.display === 'none') {
+                vendorsDiv.style.display = 'block';
+                expandIcon.textContent = '▼';
+            } else {
+                vendorsDiv.style.display = 'none';
+                expandIcon.textContent = '▶';
+            }
         }
 
         // Toggle tenant expansion
@@ -864,14 +876,15 @@
             }
         }
 
-        // Load project view (Base Configs + Quotes)
+        // Load project view (Base Configs + Quotes) — shows all vendors
         async function loadProjectQuotes(projectId, projectName, event) {
             event.stopPropagation();
             selectedProjectId = projectId;
             clearSelection();
 
-            document.querySelectorAll('.nav-project').forEach(el => el.classList.remove('active'));
-            event.currentTarget.classList.add('active');
+            document.querySelectorAll('.nav-project-header').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-vendor').forEach(el => el.classList.remove('active'));
+            document.getElementById(`project-header-${projectId}`)?.classList.add('active');
 
             document.getElementById('contentTitle').textContent = projectName;
             document.getElementById('contentSubtitle').textContent = 'Project';
@@ -889,6 +902,36 @@
                 renderProjectView(configs, quotes, projectId);
             } catch (error) {
                 content.innerHTML = `<div class="error">Error loading project: ${error.message}</div>`;
+            }
+        }
+
+        // Load vendor-filtered quotes within a project
+        async function loadVendorQuotes(projectId, projectName, vendor, event) {
+            event.stopPropagation();
+            selectedProjectId = projectId;
+            clearSelection();
+
+            document.querySelectorAll('.nav-project-header').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-vendor').forEach(el => el.classList.remove('active'));
+            document.getElementById(`vendor-${projectId}-${vendor}`)?.classList.add('active');
+
+            document.getElementById('contentTitle').textContent = `${projectName} — ${vendor}`;
+            document.getElementById('contentSubtitle').textContent = 'Vendor';
+
+            const content = document.getElementById('quotesContent');
+            content.innerHTML = '<div class="loading">Loading...</div>';
+
+            try {
+                const [configsRes, quotesRes] = await Promise.all([
+                    fetch(`${BASE}/api/projects/${projectId}/configs`),
+                    fetch(`${BASE}/api/projects/${projectId}/quotes`)
+                ]);
+                const configs = await configsRes.json();
+                const allQuotes = await quotesRes.json();
+                const vendorQuotes = allQuotes.filter(q => q.vendor === vendor);
+                renderProjectView(configs, vendorQuotes, projectId);
+            } catch (error) {
+                content.innerHTML = `<div class="error">Error loading vendor quotes: ${error.message}</div>`;
             }
         }
 
@@ -1059,8 +1102,10 @@
         function clearServerLock() {
             filterNicSelects(null);
             _lockedServer = null;
-            document.getElementById('serverLockBanner').style.display = 'none';
-            document.getElementById('serverLockLabel').textContent = '';
+            const banner = document.getElementById('serverLockBanner');
+            if (banner) banner.style.display = 'none';
+            const label = document.getElementById('serverLockLabel');
+            if (label) label.textContent = '';
         }
 
         function filterNicSelects(pool) {
@@ -1246,8 +1291,30 @@
 
         function renderQuotesHtml(quotes) {
             if (!quotes.length) return '<div class="empty-state"><p>No quotes for this project.</p></div>';
-            return `<div class="quotes-grid-mini">${quotes.map(quote => `
-                <div class="quote-card-mini ${selectedQuotes.has(quote.id) ? 'selected' : ''}"
+
+            // Group by upload date (date portion only)
+            const groups = {};
+            const groupOrder = [];
+            quotes.forEach(quote => {
+                const raw = quote.uploaded_at || '';
+                const dateKey = raw ? raw.split('T')[0].split(' ')[0] : '';
+                if (!groups[dateKey]) {
+                    groups[dateKey] = [];
+                    groupOrder.push(dateKey);
+                }
+                groups[dateKey].push(quote);
+            });
+            // Sort latest to oldest
+            groupOrder.sort((a, b) => b.localeCompare(a));
+
+            function fmtUploadDate(dateKey) {
+                if (!dateKey) return 'Unknown Date';
+                const d = new Date(dateKey + 'T00:00:00');
+                return isNaN(d) ? dateKey : d.toLocaleDateString('en-US', {year:'numeric', month:'long', day:'numeric'});
+            }
+
+            function cardHtml(quote) {
+                return `<div class="quote-card-mini ${selectedQuotes.has(quote.id) ? 'selected' : ''}"
                      onclick="window.location.href=BASE + '/quote/${quote.id}'">
                     <div class="quote-card-header">
                         <div class="vendor-badge ${_cssClass(quote.vendor)}">${_esc(quote.vendor)}</div>
@@ -1275,15 +1342,23 @@
                         </button>
                         <span class="price">${quote.currency} ${parseFloat(quote.total_amount).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
                     </div>
-                </div>`).join('')}
-            </div>`;
+                </div>`;
+            }
+
+            return groupOrder.map(dateKey => `
+                <div class="upload-date-divider">
+                    <span class="upload-date-label">Uploaded ${fmtUploadDate(dateKey)}</span>
+                </div>
+                <div class="quotes-grid-mini">${groups[dateKey].map(cardHtml).join('')}</div>
+            `).join('');
         }
 
         // Load unassigned quotes
         async function loadUnassignedQuotes() {
             selectedProjectId = null;
             clearSelection();
-            document.querySelectorAll('.nav-project').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-project-header').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-vendor').forEach(el => el.classList.remove('active'));
 
             document.getElementById('contentTitle').textContent = 'Unassigned Quotes';
             document.getElementById('contentSubtitle').textContent = 'Quotes not assigned to any project';
@@ -1415,7 +1490,8 @@
                 document.getElementById('contentTitle').textContent = 'Welcome';
                 document.getElementById('contentSubtitle').textContent = 'Select a project to view quotes';
                 selectedProjectId = null;
-                document.querySelectorAll('.nav-project').forEach(el => el.classList.remove('active'));
+                document.querySelectorAll('.nav-project-header').forEach(el => el.classList.remove('active'));
+                document.querySelectorAll('.nav-vendor').forEach(el => el.classList.remove('active'));
                 return;
             }
 

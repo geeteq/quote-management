@@ -1,6 +1,7 @@
 import sqlite3
 import json
 import os
+import re
 import logging
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from werkzeug.utils import secure_filename
@@ -273,7 +274,11 @@ def migrate_db():
             logger.info("M09: base_configs table created")
 
         # ── M10: defined_components table ─────────────────────────────────────
-        if 'defined_components' not in tables():
+        # Only create if bcc does not yet exist — once bcc is present (whether the old
+        # defined_components-backed version from M11, or the component_catalog-backed
+        # version created by schema_normalized.sql / M16), defined_components is no
+        # longer needed and must NOT be re-created (it would re-trigger M16 and wipe bcc).
+        if 'defined_components' not in tables() and 'base_config_components' not in tables():
             db.execute("""CREATE TABLE defined_components (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 component_type TEXT, manufacturer_id INTEGER REFERENCES manufacturers(id),
@@ -425,7 +430,14 @@ def migrate_db():
             logger.info("M15: learned_components merged into defined_components and dropped")
 
         # ── M16: merge defined_components → component_catalog, update FK ─────
-        if 'defined_components' in tables():
+        # Guard: only run if base_config_components still references defined_components
+        # (old schema). If bcc already references component_catalog, M16 has already
+        # completed and must not run again — doing so would wipe all component data.
+        _bcc_ddl = db.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='base_config_components'"
+        ).fetchone()
+        _bcc_needs_migration = bool(_bcc_ddl and 'defined_components' in (_bcc_ddl['sql'] or ''))
+        if 'defined_components' in tables() and _bcc_needs_migration:
             dc_rows = db.execute("""
                 SELECT dc.id, dc.component_type, m.name AS manufacturer,
                        dc.part_number, dc.model, dc.specs
@@ -613,6 +625,14 @@ def get_quote_by_id(quote_db_id):
             item_dict['specs'] = normalized_specs or {}
         else:
             item_dict['specs'] = {}
+
+        # For Memory items without catalog specs, extract capacity_gb from description
+        if category == 'Memory' and not item_dict['specs'].get('capacity_gb'):
+            desc = item_dict.get('description') or ''
+            m = re.search(r'\b(\d+)\s*(TB|GB)\b', desc, re.IGNORECASE)
+            if m:
+                val, unit = int(m.group(1)), m.group(2).upper()
+                item_dict['specs']['capacity_gb'] = val * 1024 if unit == 'TB' else val
 
         item_dict['urls'] = []
 
@@ -1186,7 +1206,21 @@ def api_navigation_hierarchy():
             ORDER BY p.name
         ''', (tenant['id'],)).fetchall()
 
-        tenant_dict['projects'] = [dict(p) for p in projects]
+        project_list = []
+        for p in projects:
+            project_dict = dict(p)
+            vendors = db.execute('''
+                SELECT vendor, COUNT(id) as count
+                FROM quotes
+                WHERE project_id = ? AND status != 'archived'
+                  AND vendor IS NOT NULL AND vendor != ''
+                GROUP BY vendor
+                ORDER BY vendor
+            ''', (p['id'],)).fetchall()
+            project_dict['vendors'] = [dict(v) for v in vendors]
+            project_list.append(project_dict)
+
+        tenant_dict['projects'] = project_list
         hierarchy.append(tenant_dict)
 
     db.close()
@@ -1199,10 +1233,10 @@ def api_project_quotes(project_id):
     db = get_db()
     quotes = db.execute('''
         SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-               total_amount, currency, description, tenant_name, project_name, ica, status, po_comments
+               total_amount, currency, description, tenant_name, project_name, ica, status, po_comments, uploaded_at
         FROM quotes
         WHERE project_id = ? AND status != 'archived'
-        ORDER BY quote_date DESC
+        ORDER BY uploaded_at DESC
     ''', (project_id,)).fetchall()
     db.close()
     return jsonify([dict(q) for q in quotes])
@@ -1214,10 +1248,10 @@ def api_unassigned_quotes():
     db = get_db()
     quotes = db.execute('''
         SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-               total_amount, currency, description, tenant_name, project_name, ica, status, po_comments
+               total_amount, currency, description, tenant_name, project_name, ica, status, po_comments, uploaded_at
         FROM quotes
         WHERE project_id IS NULL AND status != 'archived'
-        ORDER BY quote_date DESC
+        ORDER BY uploaded_at DESC
     ''').fetchall()
     db.close()
     return jsonify([dict(q) for q in quotes])
@@ -1432,23 +1466,30 @@ def api_create_config(project_id):
                 VALUES (?, ?, ?, ?, ?, 'config')
             """, (ctype, mfr, model, pn, specs))
 
-            if mfr is None:
-                cat = cursor.execute(
-                    "SELECT id FROM component_catalog "
-                    "WHERE component_type=? AND manufacturer IS NULL AND model=?",
-                    (ctype, model)
-                ).fetchone()
+            if cursor.rowcount == 1:
+                # Fresh insert — use the new row directly (avoids returning a stale
+                # row with a different part_number when manufacturer IS NULL)
+                cat_id = cursor.lastrowid
             else:
-                cat = cursor.execute(
-                    "SELECT id FROM component_catalog "
-                    "WHERE component_type=? AND manufacturer=? AND model=?",
-                    (ctype, mfr, model)
-                ).fetchone()
+                # Row already existed (UNIQUE conflict on non-NULL manufacturer) — find it
+                if mfr is None:
+                    row = cursor.execute(
+                        "SELECT id FROM component_catalog "
+                        "WHERE component_type=? AND manufacturer IS NULL AND model=?",
+                        (ctype, model)
+                    ).fetchone()
+                else:
+                    row = cursor.execute(
+                        "SELECT id FROM component_catalog "
+                        "WHERE component_type=? AND manufacturer=? AND model=?",
+                        (ctype, mfr, model)
+                    ).fetchone()
+                cat_id = row['id'] if row else None
 
-            if cat:
+            if cat_id:
                 cursor.execute(
                     "INSERT INTO base_config_components (config_id, component_id, quantity) VALUES (?, ?, ?)",
-                    (config_id, cat['id'], comp.get('quantity', 1))
+                    (config_id, cat_id, comp.get('quantity', 1))
                 )
         db.commit()
         comp_count = len(data.get('components', []))
@@ -1516,18 +1557,28 @@ def api_update_config(config_id):
                 VALUES (?, ?, ?, ?, ?, 'config')
             """, (ctype, mfr, model, pn, specs))
 
-            lookup = ("SELECT id FROM component_catalog "
-                      "WHERE component_type=? AND manufacturer IS NULL AND model=?"
-                      if mfr is None else
-                      "SELECT id FROM component_catalog "
-                      "WHERE component_type=? AND manufacturer=? AND model=?")
-            params = (ctype, model) if mfr is None else (ctype, mfr, model)
-            cat = cursor.execute(lookup, params).fetchone()
-            if cat:
+            if cursor.rowcount == 1:
+                cat_id = cursor.lastrowid
+            else:
+                if mfr is None:
+                    row = cursor.execute(
+                        "SELECT id FROM component_catalog "
+                        "WHERE component_type=? AND manufacturer IS NULL AND model=?",
+                        (ctype, model)
+                    ).fetchone()
+                else:
+                    row = cursor.execute(
+                        "SELECT id FROM component_catalog "
+                        "WHERE component_type=? AND manufacturer=? AND model=?",
+                        (ctype, mfr, model)
+                    ).fetchone()
+                cat_id = row['id'] if row else None
+
+            if cat_id:
                 cursor.execute(
                     "INSERT INTO base_config_components (config_id, component_id, quantity) "
                     "VALUES (?, ?, ?)",
-                    (config_id, cat['id'], max(1, int(comp.get('quantity', 1))))
+                    (config_id, cat_id, max(1, int(comp.get('quantity', 1))))
                 )
 
         db.commit()
