@@ -697,6 +697,12 @@ def migrate_db():
             db.commit()
             logger.info("M25: quotes.pdf_path renamed to file_path")
 
+        # ── M27: add base_configs.quantity_required ───────────────────────────
+        if 'quantity_required' not in cols('base_configs'):
+            db.execute("ALTER TABLE base_configs ADD COLUMN quantity_required INTEGER NOT NULL DEFAULT 1")
+            db.commit()
+            logger.info("M27: base_configs.quantity_required column added")
+
         # ── M26: add projects.delivery_deadline and projects.budget ───────────
         if 'delivery_deadline' not in cols('projects'):
             db.execute("ALTER TABLE projects ADD COLUMN delivery_deadline DATE")
@@ -1993,7 +1999,7 @@ def api_project_configs(project_id):
     db = get_db()
     try:
         rows = db.execute("""
-            SELECT bc.id, bc.config_name, bc.created_at,
+            SELECT bc.id, bc.config_name, bc.quantity_required, bc.created_at,
                    cc.id AS comp_id, cc.component_type, cc.part_number,
                    cc.description AS specs, cc.model,
                    cc.manufacturer AS manufacturer_name, bcc.quantity
@@ -2008,6 +2014,7 @@ def api_project_configs(project_id):
             cid = r['id']
             if cid not in configs:
                 configs[cid] = {'id': cid, 'config_name': r['config_name'],
+                                'quantity_required': r['quantity_required'] or 1,
                                 'created_at': r['created_at'], 'components': []}
                 order.append(cid)
             if r['comp_id'] is not None:
@@ -2033,9 +2040,10 @@ def api_create_config(project_id):
     db = get_db()
     try:
         cursor = db.cursor()
+        qty_req = max(1, int(data.get('quantity_required') or 1))
         cursor.execute(
-            "INSERT INTO base_configs (config_name, project_id) VALUES (?, ?)",
-            (data['config_name'].strip(), project_id)
+            "INSERT INTO base_configs (config_name, project_id, quantity_required) VALUES (?, ?, ?)",
+            (data['config_name'].strip(), project_id, qty_req)
         )
         config_id = cursor.lastrowid
         for comp in data.get('components', []):
@@ -2136,8 +2144,9 @@ def api_update_config(config_id):
         if not existing:
             return jsonify({'error': 'Config not found'}), 404
 
-        cursor.execute("UPDATE base_configs SET config_name = ? WHERE id = ?",
-                       (data['config_name'].strip(), config_id))
+        qty_req = max(1, int(data.get('quantity_required') or 1))
+        cursor.execute("UPDATE base_configs SET config_name = ?, quantity_required = ? WHERE id = ?",
+                       (data['config_name'].strip(), qty_req, config_id))
         cursor.execute("DELETE FROM base_config_components WHERE config_id = ?", (config_id,))
 
         for comp in data.get('components', []):

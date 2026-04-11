@@ -217,9 +217,15 @@
 
             <!-- Basic Config form -->
             <div id="configBasicForm" style="display:none;">
-                <div class="form-group">
-                    <label>Config Name <span class="required">*</span></label>
-                    <input type="text" id="basicConfigName" placeholder="e.g., Standard 2-Socket Server">
+                <div class="config-name-qty-row">
+                    <div class="form-group" style="flex:1;">
+                        <label>Config Name <span class="required">*</span></label>
+                        <input type="text" id="basicConfigName" placeholder="e.g., Standard 2-Socket Server">
+                    </div>
+                    <div class="form-group config-qty-field">
+                        <label>Qty Required</label>
+                        <input type="number" id="basicConfigQty" value="1" min="1" max="9999">
+                    </div>
                 </div>
                 <div class="basic-config-grid">
                     <div class="form-group basic-comp-row">
@@ -301,9 +307,15 @@
 
             <!-- Build from Vendor form -->
             <div id="configVendorForm" style="display:none;">
-                <div class="form-group">
-                    <label>Config Name <span class="required">*</span></label>
-                    <input type="text" id="vendorConfigName" placeholder="e.g., HPE DL360 Gen12 Standard">
+                <div class="config-name-qty-row">
+                    <div class="form-group" style="flex:1;">
+                        <label>Config Name <span class="required">*</span></label>
+                        <input type="text" id="vendorConfigName" placeholder="e.g., HPE DL360 Gen12 Standard">
+                    </div>
+                    <div class="form-group config-qty-field">
+                        <label>Qty Required</label>
+                        <input type="number" id="vendorConfigQty" value="1" min="1" max="9999">
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Server Model</label>
@@ -334,6 +346,8 @@
             <div class="edit-config-name-row">
                 <label class="field-label">Config Name</label>
                 <input type="text" id="editConfigName" class="field-input" placeholder="Config name">
+                <label class="field-label" style="margin-left:16px;white-space:nowrap;">Qty Required</label>
+                <input type="number" id="editConfigQty" class="field-input config-qty-field" value="1" min="1" max="9999">
             </div>
             <div class="edit-config-table-wrap">
                 <table class="components-table edit-config-table">
@@ -533,7 +547,8 @@
             }
 
             if (!components.length) { alert('Please fill in at least one component.'); return; }
-            await _submitConfig(name, components);
+            const qtyReq = Math.max(1, parseInt(document.getElementById('basicConfigQty').value) || 1);
+            await _submitConfig(name, components, qtyReq);
         }
 
         function _showToast(msg, type) {
@@ -688,16 +703,17 @@
             });
 
             if (!components.length) { alert('Select at least one component before saving.'); return; }
-            await _submitConfig(name, components);  // return value intentionally unused — alert() handles failure
+            const qtyReq = Math.max(1, parseInt(document.getElementById('vendorConfigQty').value) || 1);
+            await _submitConfig(name, components, qtyReq);  // return value intentionally unused — alert() handles failure
         }
 
         // ── Shared submit ─────────────────────────────────────────────────────
 
-        async function _submitConfig(name, components) {
+        async function _submitConfig(name, components, quantityRequired) {
             const resp = await fetch(`${BASE}/api/projects/${configModalProjectId}/configs`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({config_name: name, components})
+                body: JSON.stringify({config_name: name, components, quantity_required: quantityRequired || 1})
             });
             if (resp.ok) {
                 closeConfigModal();
@@ -720,6 +736,7 @@
             if (!cfg) return;
             _editConfigId = configId;
             document.getElementById('editConfigName').value = cfg.config_name;
+            document.getElementById('editConfigQty').value = cfg.quantity_required || 1;
             const tbody = document.getElementById('editConfigBody');
             tbody.innerHTML = '';
             cfg.components.forEach(c => tbody.appendChild(_buildEditRow(c)));
@@ -774,10 +791,11 @@
                     components.push({component_type: type, part_number: pn || null, specs: specs || null, quantity: qty});
                 }
             });
+            const qtyReq = Math.max(1, parseInt(document.getElementById('editConfigQty').value) || 1);
             const resp = await fetch(`${BASE}/api/configs/${_editConfigId}`, {
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({config_name: name, components}),
+                body: JSON.stringify({config_name: name, components, quantity_required: qtyReq}),
             });
             if (resp.ok) {
                 closeEditConfig();
@@ -1274,6 +1292,7 @@
                 <div class="config-card" id="config-card-${c.id}">
                     <div class="config-card-header">
                         <span class="config-name">${_esc(c.config_name)}</span>
+                        <span class="config-qty-badge" title="Quantity required">${c.quantity_required || 1} unit${(c.quantity_required || 1) !== 1 ? 's' : ''}</span>
                         <div class="config-card-actions">
                             <button class="btn-export-csv" onclick="downloadConfigCSV(${c.id})" title="Download config as CSV">&#8595; CSV</button>
                             <button class="btn-edit-config" onclick="openEditConfig(${c.id})" title="Edit config">&#9998; Edit</button>

@@ -294,10 +294,11 @@ CREATE TABLE IF NOT EXISTS manufacturers (
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS base_configs (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    config_name TEXT    NOT NULL,
-    project_id  INTEGER NOT NULL,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    config_name       TEXT    NOT NULL,
+    project_id        INTEGER NOT NULL,
+    quantity_required INTEGER NOT NULL DEFAULT 1 CHECK(quantity_required > 0),
+    created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
