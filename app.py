@@ -112,7 +112,7 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get('user_name'):
-            return redirect(url_for('login'))
+            return redirect(BASE_HREF + 'login')
         return f(*args, **kwargs)
     return decorated
 
@@ -1480,7 +1480,7 @@ def admin_user_update(user_id):
         )
     db.commit()
     db.close()
-    return redirect(url_for('admin_dashboard') + '?view=users')
+    return redirect(BASE_HREF + 'admin?view=users')
 
 
 @app.route('/admin/users/create', methods=['POST'])
@@ -1582,7 +1582,7 @@ def admin_tenant_update(tenant_id):
     finally:
         db.close()
 
-    return redirect(url_for('admin_dashboard'))
+    return redirect(BASE_HREF + 'admin')
 
 
 @app.route('/api/admin/tenants/<int:tenant_id>/archive', methods=['POST'])
@@ -2862,7 +2862,7 @@ def admin_project_update(project_id):
     finally:
         db.close()
 
-    return redirect(url_for('admin_dashboard'))
+    return redirect(BASE_HREF + 'admin')
 
 
 # =============================================================================
