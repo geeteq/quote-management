@@ -1293,6 +1293,11 @@
                     <div class="config-card-header">
                         <span class="config-name">${_esc(c.config_name)}</span>
                         <span class="config-qty-badge" title="Quantity required">${c.quantity_required || 1} unit${(c.quantity_required || 1) !== 1 ? 's' : ''}</span>
+                        ${c.price_avg != null ? `
+                        <span class="config-price-pill config-price-avg" title="Average unit cost (non-expired quotes)">avg $${c.price_avg.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
+                        <span class="config-price-pill config-price-min" title="Lowest unit cost (non-expired quotes)">low $${c.price_min.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
+                        <span class="config-price-pill config-price-max" title="Highest unit cost (non-expired quotes)">high $${c.price_max.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})}</span>
+                        ` : ''}
                         <div class="config-card-actions">
                             <button class="btn-export-csv" onclick="downloadConfigCSV(${c.id})" title="Download config as CSV">&#8595; CSV</button>
                             <button class="btn-edit-config" onclick="openEditConfig(${c.id})" title="Edit config">&#9998; Edit</button>

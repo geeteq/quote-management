@@ -2024,6 +2024,32 @@ def api_project_configs(project_id):
                     'model': r['model'], 'manufacturer_name': r['manufacturer_name'],
                     'quantity': r['quantity'],
                 })
+
+        # Price stats from non-expired, non-archived quotes matched to each config
+        if order:
+            placeholders = ','.join('?' * len(order))
+            price_rows = db.execute(f"""
+                SELECT config_id,
+                       AVG(CAST(total_amount AS REAL) / NULLIF(quote_items, 0)) AS avg_price,
+                       MAX(CAST(total_amount AS REAL) / NULLIF(quote_items, 0)) AS max_price,
+                       MIN(CAST(total_amount AS REAL) / NULLIF(quote_items, 0)) AS min_price
+                FROM quotes
+                WHERE config_id IN ({placeholders})
+                  AND status != 'archived'
+                  AND total_amount IS NOT NULL
+                  AND total_amount > 0
+                  AND quote_items IS NOT NULL
+                  AND quote_items > 0
+                  AND (expiry_date IS NULL OR date(expiry_date) >= date('now'))
+                GROUP BY config_id
+            """, order).fetchall()
+            for pr in price_rows:
+                cid = pr['config_id']
+                if cid in configs:
+                    configs[cid]['price_avg'] = round(pr['avg_price'], 2) if pr['avg_price'] else None
+                    configs[cid]['price_max'] = round(pr['max_price'], 2) if pr['max_price'] else None
+                    configs[cid]['price_min'] = round(pr['min_price'], 2) if pr['min_price'] else None
+
         return jsonify([configs[cid] for cid in order])
     except Exception as e:
         logger.error(f"api_project_configs error: {e}")
