@@ -3,8 +3,10 @@ import json
 import os
 import re
 import logging
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+import secrets
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 from parser import QuoteParser, DellExcelParser
 from component_registry import ComponentRegistry
 from datetime import datetime
@@ -32,6 +34,8 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = os.path.join(DATA_DIR, 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['DATABASE'] = os.path.join(DATA_DIR, 'quotes.db')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
+app.config['SESSION_PERMANENT'] = True
 
 _base = os.environ.get('BASE_URL', '/quotes').rstrip('/')
 BASE_HREF = _base + '/'
@@ -86,7 +90,31 @@ GIT_BRANCH = _git_branch()
 
 @app.context_processor
 def inject_base_href():
-    return {'base_href': BASE_HREF, 'git_branch': GIT_BRANCH, 'static_version': STATIC_VERSION}
+    return {
+        'base_href': BASE_HREF,
+        'git_branch': GIT_BRANCH,
+        'static_version': STATIC_VERSION,
+        'current_user': session.get('user_name'),
+    }
+
+
+def _current_user():
+    """Return the logged-in username, or 'system' if outside request context."""
+    try:
+        return session.get('user_name', 'system')
+    except RuntimeError:
+        return 'system'
+
+
+def login_required(f):
+    """Decorator that redirects to /login when no active session exists."""
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('user_name'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
 
 
 ALLOWED_EXTENSIONS = {'pdf', 'xlsx', 'xls'}
@@ -542,20 +570,22 @@ def migrate_db():
             db.commit()
             logger.info(f"M18: normalized {updated} quote date(s) to YYYY-MM-DD")
 
-        # ── M19: repath pdf_path to current DATA_DIR if file moved ────────────
+        # ── M19: repath quote file path to current DATA_DIR if file moved ───────
+        # Column was pdf_path before M25 renamed it to file_path; support both.
+        _fcol = 'file_path' if 'file_path' in cols('quotes') else 'pdf_path'
         upload_folder = os.path.join(DATA_DIR, 'uploads')
-        pdf_rows = db.execute("SELECT id, pdf_path FROM quotes WHERE pdf_path IS NOT NULL").fetchall()
+        pdf_rows = db.execute(f"SELECT id, {_fcol} AS fpath FROM quotes WHERE {_fcol} IS NOT NULL").fetchall()
         repathed = 0
         for row in pdf_rows:
-            p = row['pdf_path']
+            p = row['fpath']
             if not os.path.exists(p):
                 candidate = os.path.join(upload_folder, os.path.basename(p))
                 if os.path.exists(candidate):
-                    db.execute("UPDATE quotes SET pdf_path = ? WHERE id = ?", (candidate, row['id']))
+                    db.execute(f"UPDATE quotes SET {_fcol} = ? WHERE id = ?", (candidate, row['id']))
                     repathed += 1
         if repathed:
             db.commit()
-            logger.info(f"M19: repathed {repathed} PDF path(s) to current DATA_DIR")
+            logger.info(f"M19: repathed {repathed} quote file path(s) to current DATA_DIR")
 
         # ── M20: repath servers.pdf_path to current DATA_DIR/quickspecs ──────
         quickspec_folder = os.path.join(DATA_DIR, 'quickspecs')
@@ -573,8 +603,7 @@ def migrate_db():
             logger.info(f"M20: repathed {srv_repathed} QuickSpec PDF path(s) to current DATA_DIR")
 
         # ── M21: add quote_items column ───────────────────────────────────────
-        cols = [r['name'] for r in db.execute("PRAGMA table_info(quotes)").fetchall()]
-        if 'quote_items' not in cols:
+        if 'quote_items' not in cols('quotes'):
             db.execute("ALTER TABLE quotes ADD COLUMN quote_items INTEGER")
             db.commit()
             logger.info("M21: quotes.quote_items column added")
@@ -587,12 +616,93 @@ def migrate_db():
             db.commit()
             logger.info(f"M22: set quote_items = 1 on {updated} quote(s)")
 
+        # ── M23: defined_components (admin-curated approved component list) ───
+        if 'defined_components' not in tables():
+            db.execute("""
+                CREATE TABLE defined_components (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    catalog_id   INTEGER NOT NULL REFERENCES component_catalog(id) ON DELETE CASCADE,
+                    label        TEXT,
+                    notes        TEXT,
+                    is_preferred BOOLEAN NOT NULL DEFAULT 0,
+                    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            db.execute("CREATE INDEX IF NOT EXISTS idx_defined_comp_catalog   ON defined_components(catalog_id)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_defined_comp_preferred ON defined_components(is_preferred)")
+            db.execute("""
+                CREATE TRIGGER trg_defined_components_updated_at
+                AFTER UPDATE ON defined_components
+                FOR EACH ROW
+                BEGIN
+                    UPDATE defined_components SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+                END
+            """)
+            db.commit()
+            logger.info("M23: defined_components table created")
+
+        # ── M24: users table + seed default accounts ──────────────────────────
+        if 'users' not in tables():
+            db.execute("""
+                CREATE TABLE users (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_name       TEXT NOT NULL UNIQUE,
+                    user_email      TEXT,
+                    user_gecos      TEXT,
+                    password_hash   TEXT NOT NULL,
+                    user_last_login TIMESTAMP,
+                    user_status     TEXT NOT NULL DEFAULT 'enabled'
+                                        CHECK(user_status IN ('enabled', 'disabled')),
+                    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            _pw = generate_password_hash('1q2w3e4r')
+            db.execute(
+                "INSERT INTO users (user_name, user_email, user_gecos, password_hash) VALUES (?, ?, ?, ?)",
+                ('admin@localhost', 'admin@localhost', 'Administrator', _pw)
+            )
+            db.execute(
+                "INSERT INTO users (user_name, user_email, user_gecos, password_hash) VALUES (?, ?, ?, ?)",
+                ('toor@localhost', 'toor@localhost', 'Root User', _pw)
+            )
+            db.execute(
+                "INSERT INTO users (user_name, user_email, user_gecos, password_hash) VALUES (?, ?, ?, ?)",
+                ('test@test.com', 'test@test.com', 'Test User', _pw)
+            )
+            db.commit()
+            logger.info("M24: users table created, admin and toor accounts seeded")
+
+        # ── M25.5: migrate user_name to email-style; add test user ───────────────
+        if 'users' in tables():
+            _pw = generate_password_hash('1q2w3e4r')
+            # Rename legacy short usernames to their email equivalents
+            for old, new_name in [('admin', 'admin@localhost'), ('toor', 'toor@localhost')]:
+                row = db.execute("SELECT id FROM users WHERE user_name = ?", (old,)).fetchone()
+                if row:
+                    db.execute("UPDATE users SET user_name = ? WHERE id = ?", (new_name, row['id']))
+            # Add test user if not already present
+            if not db.execute("SELECT 1 FROM users WHERE user_name = 'test@test.com'").fetchone():
+                db.execute(
+                    "INSERT INTO users (user_name, user_email, user_gecos, password_hash) VALUES (?, ?, ?, ?)",
+                    ('test@test.com', 'test@test.com', 'Test User', _pw)
+                )
+            db.commit()
+            logger.info("M25.5: user_name migrated to email format, test user added")
+
+        # ── M25: rename quotes.pdf_path → quotes.file_path ────────────────────
+        # pdf_path was misleading once Excel uploads were added.
+        if 'pdf_path' in cols('quotes') and 'file_path' not in cols('quotes'):
+            db.execute("ALTER TABLE quotes RENAME COLUMN pdf_path TO file_path")
+            db.commit()
+            logger.info("M25: quotes.pdf_path renamed to file_path")
+
     finally:
         db.execute("PRAGMA foreign_keys = ON")
         db.close()
 
 
-def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_id=None, tenant_name='', project_name='', ica='', po_comments='', config_id=None, quote_items=None):
+def save_quote_to_db(quote_data, line_items, file_path, tenant_id=None, project_id=None, tenant_name='', project_name='', ica='', po_comments='', config_id=None, quote_items=None):
     """Save parsed quote data to database."""
     logger.debug(f"Saving quote: {quote_data.get('quote_id')} with {len(line_items)} items")
 
@@ -611,7 +721,7 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
         # Insert quote (with parameterized queries for SQL injection protection)
         cursor.execute('''
             INSERT INTO quotes (quote_id, vendor, customer_name, quote_date, expiry_date,
-                               total_amount, currency, description, pdf_path,
+                               total_amount, currency, description, file_path,
                                tenant_id, project_id, tenant_name, project_name, ica, po_comments, config_id, quote_items)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
@@ -622,8 +732,8 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
             normalize_date(quote_data.get('expiry_date')),
             quote_data.get('total_amount'),
             quote_data.get('currency', 'CAD'),
-            quote_data.get('description') or os.path.basename(pdf_path),
-            pdf_path,
+            quote_data.get('description') or os.path.basename(file_path),
+            file_path,
             tenant_id,
             project_id,
             tenant_name,
@@ -637,7 +747,7 @@ def save_quote_to_db(quote_data, line_items, pdf_path, tenant_id=None, project_i
         quote_db_id = cursor.lastrowid
 
         # Insert line items (simplified without catalog to avoid locks)
-        parser = QuoteParser(pdf_path)
+        parser = QuoteParser(file_path)
         for item in line_items:
             # Extract component details
             component_details = parser.extract_component_details(item)
@@ -809,7 +919,7 @@ def get_normalized_specs(catalog_id, component_type):
     return specs
 
 
-def log_transaction(type_code, user_name='admin', quote_id=None, config_id=None,
+def log_transaction(type_code, user_name=None, quote_id=None, config_id=None,
                     metadata=None, tokens_override=None):
     """
     Append one row to the transactions ledger.
@@ -818,6 +928,8 @@ def log_transaction(type_code, user_name='admin', quote_id=None, config_id=None,
     tokens_override: when provided, overrides transaction_types.token_cost.
     Useful for compound actions (e.g. add_quote + N × add_quote_item).
     """
+    if user_name is None:
+        user_name = _current_user()
     try:
         db = get_db()
         row = db.execute(
@@ -846,13 +958,64 @@ def get_all_quotes():
     db = get_db()
     quotes = db.execute('''
         SELECT id, quote_id, vendor, customer_name, quote_date, expiry_date,
-               total_amount, currency, description, tenant_name, project_name, ica, status, po_comments
+               total_amount, currency, description, tenant_name, project_name,
+               ica, status, po_comments, uploaded_at, config_id, quote_items
         FROM quotes
         WHERE status != 'archived'
         ORDER BY uploaded_at DESC
     ''').fetchall()
     db.close()
     return [dict(q) for q in quotes]
+
+
+# =============================================================================
+# AUTH ROUTES
+# =============================================================================
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if session.get('user_name'):
+        return redirect(url_for('index'))
+    error = None
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        db = get_db()
+        user = db.execute(
+            "SELECT * FROM users WHERE user_name = ?", (username,)
+        ).fetchone()
+        db.close()
+        if user and user['user_status'] == 'enabled' and check_password_hash(user['password_hash'], password):
+            session.permanent = True
+            session['user_name'] = user['user_name']
+            db2 = get_db()
+            db2.execute(
+                "UPDATE users SET user_last_login = CURRENT_TIMESTAMP WHERE id = ?", (user['id'],)
+            )
+            db2.commit()
+            db2.close()
+            return redirect(url_for('index'))
+        elif user and user['user_status'] == 'disabled':
+            error = 'Account is disabled.'
+        else:
+            error = 'Invalid username or password.'
+    return render_template('login.html', error=error)
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+
+@app.before_request
+def require_login():
+    """Block all routes except /login and static assets when not authenticated."""
+    public = {'/login', '/logout'}
+    if request.path in public or request.path.startswith('/static/'):
+        return None
+    if not session.get('user_name'):
+        return redirect(url_for('login'))
 
 
 @app.route('/')
@@ -1042,27 +1205,164 @@ def api_quote(quote_id):
     return jsonify(quote_data)
 
 
+def _excel_to_html(path):
+    """Render an xlsx workbook as a self-contained styled HTML page.
+
+    Handles:
+    - Merged cells (colspan/rowspan via HTML attributes)
+    - Uncached formula cells (load both cached and raw workbook, prefer cached)
+    - Wide sheets (horizontal scroll wrapper)
+    """
+    import openpyxl
+
+    # Load twice: data_only for cached formula results, and raw for formula text.
+    # Cells whose cached value is None but have a formula get a '(formula)' hint
+    # so they don't silently appear blank.
+    wb_data = openpyxl.load_workbook(path, data_only=True)
+    wb_raw  = openpyxl.load_workbook(path, data_only=False)
+    ws_data = wb_data.active
+    ws_raw  = wb_raw.active
+
+    # Build a set of merged ranges and a skip-set for cells that are
+    # covered (non-top-left) by a merge — those must not emit a <td>.
+    # openpyxl exposes ws.merged_cells.ranges
+    merge_attrs = {}   # (row, col) -> {'rowspan': r, 'colspan': c}
+    skip_cells  = set()
+
+    for merge in ws_data.merged_cells.ranges:
+        min_r, min_c = merge.min_row, merge.min_col
+        max_r, max_c = merge.max_row, merge.max_col
+        rowspan = max_r - min_r + 1
+        colspan = max_c - min_c + 1
+        merge_attrs[(min_r, min_c)] = {'rowspan': rowspan, 'colspan': colspan}
+        for r in range(min_r, max_r + 1):
+            for c in range(min_c, max_c + 1):
+                if (r, c) != (min_r, min_c):
+                    skip_cells.add((r, c))
+
+    # Find actual used bounds (trim trailing fully-empty rows)
+    all_rows = list(ws_data.iter_rows())
+    while all_rows and all(cell.value is None for cell in all_rows[-1]):
+        all_rows.pop()
+    if not all_rows:
+        return '<html><body><p>Empty spreadsheet.</p></body></html>'
+
+    max_col = max(len(row) for row in all_rows)
+
+    def _fmt(cell_data, cell_raw):
+        v = cell_data.value
+        if v is None:
+            # Check if the raw cell has a formula — if so value was never cached
+            rv = cell_raw.value if cell_raw else None
+            if rv and str(rv).startswith('='):
+                return '<span style="color:#94a3b8;font-style:italic">(formula)</span>'
+            return ''
+        if isinstance(v, float):
+            return f'{v:,.2f}' if v != int(v) else f'{int(v):,}'
+        return str(v).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    body_rows = ''
+    for row_data in all_rows:
+        row_idx = row_data[0].row
+        cells_html = ''
+        for cell_data in row_data[:max_col]:
+            col_idx = cell_data.column
+            coord    = (row_idx, col_idx)
+
+            if coord in skip_cells:
+                continue  # covered by a merge — omit
+
+            attrs = merge_attrs.get(coord, {})
+            span_attrs = ''
+            if attrs.get('rowspan', 1) > 1:
+                span_attrs += f' rowspan="{attrs["rowspan"]}"'
+            if attrs.get('colspan', 1) > 1:
+                span_attrs += f' colspan="{attrs["colspan"]}"'
+
+            try:
+                cell_raw = ws_raw.cell(row=row_idx, column=col_idx)
+            except Exception:
+                cell_raw = None
+
+            content = _fmt(cell_data, cell_raw)
+            cells_html += f'<td{span_attrs}>{content}</td>'
+
+        body_rows += f'<tr>{cells_html}</tr>\n'
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 11px;
+    color: #1a1a2e;
+    background: #f8fafc;
+    padding: 16px;
+  }}
+  .scroll-wrapper {{
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 8px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+  }}
+  table {{
+    border-collapse: collapse;
+    min-width: 100%;
+    background: #fff;
+  }}
+  th, td {{
+    padding: 5px 8px;
+    border: 1px solid #e2e8f0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    vertical-align: top;
+  }}
+  tr:nth-child(even) td {{ background: #f8fafc; }}
+  tr:hover td {{ background: #ede9fe; }}
+</style>
+</head>
+<body>
+<div class="scroll-wrapper">
+<table>
+<tbody>
+{body_rows}
+</tbody>
+</table>
+</div>
+</body>
+</html>"""
+
+
 @app.route('/pdf/<int:quote_id>')
 def serve_pdf(quote_id):
-    """Serve PDF file for a quote."""
-    from flask import send_file
+    """Serve the source file for a quote — PDF inline or Excel rendered as HTML."""
+    from flask import send_file, make_response
     db = get_db()
-    quote = db.execute('SELECT pdf_path FROM quotes WHERE id = ?', (quote_id,)).fetchone()
+    quote = db.execute('SELECT file_path FROM quotes WHERE id = ?', (quote_id,)).fetchone()
     db.close()
-    if not quote or not quote['pdf_path']:
-        return "PDF not found", 404
-    pdf_path = quote['pdf_path']
-    if not os.path.isabs(pdf_path):
-        pdf_path = os.path.join(_app_dir, pdf_path)
-    # If stored path doesn't exist (e.g. migrated from another machine),
-    # fall back to locating the file by name in the current uploads directory.
-    if not os.path.exists(pdf_path):
-        fallback = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(pdf_path))
+    if not quote or not quote['file_path']:
+        return "Document not found", 404
+    file_path = quote['file_path']
+    if not os.path.isabs(file_path):
+        file_path = os.path.join(_app_dir, file_path)
+    if not os.path.exists(file_path):
+        fallback = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(file_path))
         if os.path.exists(fallback):
-            pdf_path = fallback
+            file_path = fallback
         else:
-            return "PDF file not found on disk", 404
-    return send_file(pdf_path, mimetype='application/pdf')
+            return "File not found on disk", 404
+
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext in ('.xlsx', '.xls'):
+        html = _excel_to_html(file_path)
+        resp = make_response(html)
+        resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+        return resp
+
+    return send_file(file_path, mimetype='application/pdf')
 
 
 @app.route('/compare')
@@ -1120,6 +1420,87 @@ def compare_quotes():
 # =============================================================================
 # ADMIN ROUTES
 # =============================================================================
+
+@app.route('/admin/users')
+def admin_users():
+    db = get_db()
+    users = db.execute(
+        "SELECT id, user_name, user_email, user_gecos, user_last_login, user_status, created_at FROM users ORDER BY user_name"
+    ).fetchall()
+    db.close()
+    return render_template('admin/users_list.html', users=[dict(u) for u in users])
+
+
+@app.route('/admin/users/<int:user_id>/edit')
+def admin_user_edit(user_id):
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    db.close()
+    if not user:
+        return "User not found", 404
+    return render_template('admin/user_edit.html', user=dict(user))
+
+
+@app.route('/admin/users/<int:user_id>/update', methods=['POST'])
+def admin_user_update(user_id):
+    db = get_db()
+    user = db.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        db.close()
+        return "User not found", 404
+
+    user_email  = request.form.get('user_email', '').strip()
+    user_gecos  = request.form.get('user_gecos', '').strip()
+    user_status = request.form.get('user_status', 'enabled')
+    new_password = request.form.get('new_password', '').strip()
+
+    if user_status not in ('enabled', 'disabled'):
+        user_status = 'enabled'
+
+    if new_password:
+        pw_hash = generate_password_hash(new_password)
+        db.execute(
+            "UPDATE users SET user_email=?, user_gecos=?, user_status=?, password_hash=? WHERE id=?",
+            (user_email, user_gecos, user_status, pw_hash, user_id)
+        )
+    else:
+        db.execute(
+            "UPDATE users SET user_email=?, user_gecos=?, user_status=? WHERE id=?",
+            (user_email, user_gecos, user_status, user_id)
+        )
+    db.commit()
+    db.close()
+    return redirect(url_for('admin_dashboard') + '?view=users')
+
+
+@app.route('/admin/users/create', methods=['POST'])
+def admin_user_create():
+    user_email  = request.form.get('user_email', '').strip()
+    user_gecos  = request.form.get('user_gecos', '').strip()
+    user_status = request.form.get('user_status', 'enabled')
+    password    = request.form.get('new_password', '').strip()
+
+    # Username = email; fall back to user@local if blank
+    user_name = user_email or 'user@local'
+    if user_status not in ('enabled', 'disabled'):
+        user_status = 'enabled'
+    if not password:
+        return jsonify({'error': 'Password is required'}), 400
+
+    pw_hash = generate_password_hash(password)
+    db = get_db()
+    try:
+        db.execute(
+            "INSERT INTO users (user_name, user_email, user_gecos, password_hash, user_status) VALUES (?, ?, ?, ?, ?)",
+            (user_name, user_email, user_gecos, pw_hash, user_status)
+        )
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        db.close()
+
 
 @app.route('/admin')
 def admin_dashboard():
@@ -1345,8 +1726,71 @@ def api_project_quotes(project_id):
         WHERE q.project_id = ? AND q.status != 'archived'
         ORDER BY q.uploaded_at DESC
     ''', (project_id,)).fetchall()
+    result = []
+    for q in quotes:
+        row = dict(q)
+        row['component_tags'] = _build_component_tags(db, q['id'])
+        result.append(row)
     db.close()
-    return jsonify([dict(q) for q in quotes])
+    return jsonify(result)
+
+
+def _build_component_tags(db, quote_id):
+    """Return a list of compact component tag dicts for a quote's line items."""
+    rows = db.execute('''
+        SELECT category, description, quantity
+        FROM line_items
+        WHERE quote_id = ?
+        ORDER BY CASE category
+            WHEN 'CPU' THEN 1
+            WHEN 'Memory' THEN 2
+            WHEN 'Disk' THEN 3
+            WHEN 'Network Card' THEN 4
+            ELSE 5
+        END
+    ''', (quote_id,)).fetchall()
+
+    tags = []
+    seen_cats = set()
+    for row in rows:
+        cat = row['category']
+        if cat not in ('CPU', 'Memory', 'Disk', 'Network Card'):
+            continue
+        if cat in seen_cats:
+            continue
+        seen_cats.add(cat)
+        desc = (row['description'] or '').strip()
+        qty = row['quantity'] or 1
+
+        # Extract compact label from description
+        # Remove vendor prefixes like "HPE ", "Dell ", "Intel ", etc.
+        label = desc
+        # Strip common vendor/product prefixes
+        label = re.sub(r'^(?:HPE|Dell|AMD|Intel|Broadcom|INT|BCM|Seagate|Samsung|Micron|Kingston)\s+', '', label, flags=re.IGNORECASE)
+        # For CPU: grab model fragment (e.g. "EPYC 9534", "Xeon Platinum 8592+")
+        if cat == 'CPU':
+            m = re.search(r'(EPYC\s+\w+|Xeon\s+\w+(?:\s+\w+)?|\w+-\d+\w*)', label, re.IGNORECASE)
+            label = m.group(1) if m else label.split()[0] if label else desc
+        # For Memory: grab capacity fragment (e.g. "96GB", "16GB RDIMM")
+        elif cat == 'Memory':
+            m = re.search(r'(\d+\s*[GT]B(?:\s+\w+)?)', label, re.IGNORECASE)
+            label = m.group(1).strip() if m else label.split()[0] if label else desc
+        # For Disk: grab capacity + type
+        elif cat == 'Disk':
+            # Skip pure boot/management devices
+            if re.search(r'\bBOSS\b', desc, re.IGNORECASE):
+                seen_cats.discard(cat)
+                continue
+            m = re.search(r'(\d+(?:\.\d+)?\s*[GT]B(?:\s+\w+)?)', label, re.IGNORECASE)
+            label = m.group(1).strip() if m else label.split()[0] if label else desc
+        # For NIC: grab speed fragment
+        elif cat == 'Network Card':
+            m = re.search(r'(\d+\s*G[bB]e?(?:\s+\w+)?)', label, re.IGNORECASE)
+            label = m.group(1).strip() if m else label.split()[0] if label else desc
+
+        tags.append({'cat': cat, 'label': f'{qty}\u00d7 {label}'})
+
+    return tags
 
 
 @app.route('/api/quotes/unassigned')
@@ -1363,8 +1807,13 @@ def api_unassigned_quotes():
         WHERE q.project_id IS NULL AND q.status != 'archived'
         ORDER BY q.uploaded_at DESC
     ''').fetchall()
+    result = []
+    for q in quotes:
+        row = dict(q)
+        row['component_tags'] = _build_component_tags(db, q['id'])
+        result.append(row)
     db.close()
-    return jsonify([dict(q) for q in quotes])
+    return jsonify(result)
 
 
 # =============================================================================
@@ -1425,16 +1874,16 @@ def api_admin_quote_delete(quote_id):
     db = get_db()
     try:
         db.execute("PRAGMA foreign_keys = ON")
-        row = db.execute("SELECT pdf_path FROM quotes WHERE id = ?", (quote_id,)).fetchone()
+        row = db.execute("SELECT file_path FROM quotes WHERE id = ?", (quote_id,)).fetchone()
         if not row:
             return jsonify({'error': 'Quote not found'}), 404
         db.execute("DELETE FROM quotes WHERE id = ?", (quote_id,))
         db.commit()
         log_transaction('delete_quote', metadata={'deleted_quote_id': quote_id})
-        # Remove PDF file if it exists
-        if row['pdf_path'] and os.path.exists(row['pdf_path']):
+        # Remove uploaded file if it exists
+        if row['file_path'] and os.path.exists(row['file_path']):
             try:
-                os.remove(row['pdf_path'])
+                os.remove(row['file_path'])
             except OSError:
                 pass
         return jsonify({'success': True})

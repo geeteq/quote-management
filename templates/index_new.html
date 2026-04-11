@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quote Management System</title>
     <link rel="stylesheet" href="static/style.css?v={{ static_version }}">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="static/vendor/chart.umd.min.js"></script>
 </head>
 <body>
     <!-- Top Actions (Compare + Admin) -->
@@ -189,9 +189,6 @@
                 <div id="priceHistoryLoading" class="match-loading" style="display:none;">Loading price history…</div>
                 <div id="priceHistoryEmpty" class="match-empty" style="display:none;">No matching quotes found for this config yet.</div>
                 <canvas id="priceHistoryChart" style="display:none; max-height:380px;"></canvas>
-                <p class="price-history-hint" id="priceHistoryHint" style="display:none;">
-                    Showing quotes with ≥50% component type match against this config, grouped by vendor.
-                </p>
             </div>
         </div>
     </div>
@@ -1605,13 +1602,10 @@
             const loading = document.getElementById('priceHistoryLoading');
             const empty   = document.getElementById('priceHistoryEmpty');
             const canvas  = document.getElementById('priceHistoryChart');
-            const hint    = document.getElementById('priceHistoryHint');
-
             title.textContent = 'Price History';
             loading.style.display = '';
             empty.style.display   = 'none';
             canvas.style.display  = 'none';
-            hint.style.display    = 'none';
             modal.style.display   = 'flex';
 
             if (_priceChart) { _priceChart.destroy(); _priceChart = null; }
@@ -1653,7 +1647,6 @@
                 });
 
                 canvas.style.display = '';
-                hint.style.display   = '';
                 _priceChart = new Chart(canvas, {
                     type: 'line',
                     data: { labels: allRefs, datasets },
@@ -1671,8 +1664,7 @@
                                     label: item => {
                                         if (item.raw === null) return null;
                                         const m     = item.dataset._meta[item.dataIndex];
-                                        const label = m && m.quote_items > 1 ? 'unit cost' : 'total';
-                                        return ` ${item.dataset.label}  $${Number(item.raw).toLocaleString('en-US', {minimumFractionDigits:2})} ${label}`;
+                                        return ` ${item.dataset.label}  $${Number(item.raw).toLocaleString('en-US', {minimumFractionDigits:2})} unit cost`;
                                     }
                                 }
                             }
@@ -1753,12 +1745,12 @@
                         <div class="metadata-item"><span class="metadata-label">Date:</span><span class="metadata-value">${_esc(quote.quote_date) || 'N/A'}</span></div>
                         <div class="metadata-item"><span class="metadata-label">Expires:</span><span class="metadata-value${quote.expiry_date && new Date(quote.expiry_date) < new Date() ? ' expired-date' : ''}">${_esc(quote.expiry_date) || 'N/A'}</span></div>
                         ${quote.ica ? `<div class="metadata-item"><span class="metadata-label">ICA:</span><span class="metadata-value">${_esc(quote.ica)}</span></div>` : ''}
-                        ${quote.description ? `<div class="metadata-item"><span class="metadata-label">Description:</span><span class="metadata-value">${_esc(quote.description)}</span></div>` : ''}
                         ${quote.po_comments ? `<div class="metadata-item"><span class="metadata-label">PO Comments:</span><span class="metadata-value">${_esc(quote.po_comments)}</span></div>` : ''}
                         <div class="metadata-item"><span class="metadata-label">Config:</span><span class="metadata-value">${quote.config_name ? _esc(quote.config_name) : 'No config'}</span></div>
                         ${quote.total_amount ? `<div class="metadata-item"><span class="metadata-label">Total quote price:</span><span class="metadata-value">$${parseFloat(quote.total_amount).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span></div>` : ''}
                         ${quote.quote_items ? `<div class="metadata-item"><span class="metadata-label">Total quote items:</span><span class="metadata-value">${quote.quote_items}</span></div>` : ''}
                     </div>
+                    ${quote.component_tags && quote.component_tags.length ? `<div class="component-tags">${quote.component_tags.map(t => `<span class="ctag ctag-${t.cat.toLowerCase().replace(' ','-')}">${_esc(t.label)}</span>`).join('')}</div>` : ''}
                     <div class="quote-footer">
                         <button class="btn-archive" onclick="event.stopPropagation(); archiveQuote(${quote.id})" title="Archive quote">
                             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 2a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2zm0 5a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V7zm5 1v1H6v1h4V9h-1V8H6zm0 0" fill="currentColor"/></svg>

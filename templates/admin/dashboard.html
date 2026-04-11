@@ -15,6 +15,10 @@
                 <h2>Admin Panel</h2>
                 <span class="branch-badge">{{ git_branch }}</span>
                 <a href="./" class="back-link">← Back to Main</a>
+                <div class="sidebar-user-block">
+                    <span class="sidebar-username">{{ current_user }}</span>
+                    <a href="logout" class="sidebar-logout">Sign out</a>
+                </div>
             </div>
 
             <nav class="admin-menu">
@@ -98,6 +102,16 @@
                         </li>
                     </ul>
                 </div>
+                <div class="admin-menu-section">
+                    <h3 class="admin-menu-header">Users</h3>
+                    <ul class="admin-menu-list">
+                        <li>
+                            <a href="#" class="admin-menu-item" data-view="users">
+                                User List
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </nav>
         </aside>
 
@@ -110,6 +124,43 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- Add User Modal (permanent DOM — shown/hidden via JS) -->
+    <div class="modal" id="addUserModal">
+        <div class="modal-content" style="max-width:460px;">
+            <div class="modal-header">
+                <h2>Add User</h2>
+                <button class="modal-close" id="addUserModalClose">&times;</button>
+            </div>
+            <form id="addUserForm" class="admin-form" style="padding:24px;">
+                <div class="form-group">
+                    <label class="form-label" for="nu_email">Email <span style="color:#ef4444">*</span></label>
+                    <input type="email" id="nu_email" class="form-control" placeholder="user@example.com" required>
+                    <span class="form-hint">Used as username for login.</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="nu_gecos">Full Name</label>
+                    <input type="text" id="nu_gecos" class="form-control" placeholder="Display name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="nu_status">Status</label>
+                    <select id="nu_status" class="form-control">
+                        <option value="enabled">Enabled</option>
+                        <option value="disabled">Disabled</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="nu_password">Password <span style="color:#ef4444">*</span></label>
+                    <input type="password" id="nu_password" class="form-control" placeholder="Set initial password" required autocomplete="new-password">
+                </div>
+                <div id="addUserError" class="login-error" style="display:none;margin-top:0;"></div>
+                <div class="admin-form-actions" style="border-top:none;padding-top:0;">
+                    <button type="submit" class="btn-primary">Create User</button>
+                    <button type="button" class="btn-secondary" id="addUserCancelBtn">Cancel</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script>
@@ -147,6 +198,8 @@
                     await loadTransactionsView();
                 } else if (view === 'transaction-types') {
                     await loadTransactionTypesView();
+                } else if (view === 'users') {
+                    await loadUsersView();
                 }
             });
         });
@@ -623,6 +676,65 @@
                 contentArea.innerHTML = `<div class="error">Error loading transaction types: ${error.message}</div>`;
             }
         }
+
+        async function loadUsersView() {
+            const contentArea = document.getElementById('contentArea');
+            contentArea.innerHTML = '<div class="loading">Loading users…</div>';
+            try {
+                const response = await fetch(`${BASE}/admin/users`);
+                const html = await response.text();
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                const content = doc.querySelector('.quotes-admin-content');
+                contentArea.innerHTML = content ? content.outerHTML : html;
+                // Wire the Add User button (rendered inside contentArea) to the modal
+                const btn = document.getElementById('addUserBtn');
+                if (btn) btn.addEventListener('click', openAddUserModal);
+            } catch (error) {
+                contentArea.innerHTML = `<div class="error">Error loading users: ${error.message}</div>`;
+            }
+        }
+
+        // ── Add User modal ────────────────────────────────────────────────────
+        const _addUserModal  = document.getElementById('addUserModal');
+        const _addUserForm   = document.getElementById('addUserForm');
+        const _addUserErrBox = document.getElementById('addUserError');
+
+        function openAddUserModal() {
+            _addUserForm.reset();
+            _addUserErrBox.style.display = 'none';
+            _addUserModal.style.display  = 'flex';
+            document.getElementById('nu_email').focus();
+        }
+        function closeAddUserModal() { _addUserModal.style.display = ''; }
+
+        document.getElementById('addUserModalClose').addEventListener('click', closeAddUserModal);
+        document.getElementById('addUserCancelBtn').addEventListener('click', closeAddUserModal);
+        _addUserModal.addEventListener('click', e => { if (e.target === _addUserModal) closeAddUserModal(); });
+
+        _addUserForm.addEventListener('submit', async e => {
+            e.preventDefault();
+            _addUserErrBox.style.display = 'none';
+            const body = new URLSearchParams({
+                user_email:   document.getElementById('nu_email').value.trim(),
+                user_gecos:   document.getElementById('nu_gecos').value.trim(),
+                user_status:  document.getElementById('nu_status').value,
+                new_password: document.getElementById('nu_password').value,
+            });
+            try {
+                const res  = await fetch(`${BASE}/admin/users/create`, { method: 'POST', body });
+                const data = await res.json();
+                if (data.success) {
+                    closeAddUserModal();
+                    await loadUsersView();
+                } else {
+                    _addUserErrBox.textContent    = data.error || 'Failed to create user.';
+                    _addUserErrBox.style.display  = '';
+                }
+            } catch (err) {
+                _addUserErrBox.textContent   = 'Network error.';
+                _addUserErrBox.style.display = '';
+            }
+        });
 
         async function loadProjectQuotes(projectId, projectName, tenantId, tenantName) {
             const contentArea = document.getElementById('contentArea');
