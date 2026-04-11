@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <base href="{{ base_href }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit User - Admin</title>
+    <link rel="stylesheet" href="static/style.css?v={{ static_version }}">
+</head>
+<body>
+    <div class="admin-layout" style="min-height:100vh;">
+        <main style="padding:40px; max-width:560px; margin:0 auto;">
+            <div class="admin-form-card">
+                <div class="admin-form-header">
+                    <h2>Edit User</h2>
+                    <span class="admin-form-username">{{ user.user_name }}</span>
+                </div>
+
+                <form method="post" action="admin/users/{{ user.id }}/update" class="admin-form">
+                    <div class="form-group">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" value="{{ user.user_name }}" disabled>
+                        <span class="form-hint">Username cannot be changed.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="user_gecos">Full Name</label>
+                        <input type="text" id="user_gecos" name="user_gecos" class="form-control"
+                               value="{{ user.user_gecos or '' }}" placeholder="Display name">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="user_email">Email</label>
+                        <input type="email" id="user_email" name="user_email" class="form-control"
+                               value="{{ user.user_email or '' }}" placeholder="user@example.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="user_status">Status</label>
+                        <select id="user_status" name="user_status" class="form-control">
+                            <option value="enabled" {% if user.user_status == 'enabled' %}selected{% endif %}>Enabled</option>
+                            <option value="disabled" {% if user.user_status == 'disabled' %}selected{% endif %}>Disabled</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="new_password">New Password</label>
+                        <input type="password" id="new_password" name="new_password" class="form-control"
+                               placeholder="Leave blank to keep current password" autocomplete="new-password">
+                    </div>
+
+                    <div class="admin-form-actions">
+                        <button type="submit" class="btn-primary">Save Changes</button>
+                        <a href="admin" class="btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

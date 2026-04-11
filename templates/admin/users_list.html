@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <base href="{{ base_href }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Users - Admin</title>
+    <link rel="stylesheet" href="static/style.css?v={{ static_version }}">
+</head>
+<body>
+    <div class="quotes-admin-content">
+        <div class="admin-content-header">
+            <h1>Users</h1>
+            <div style="display:flex;align-items:center;gap:12px;">
+                <span class="admin-record-count">{{ users|length }} user{{ 's' if users|length != 1 else '' }}</span>
+                <button class="btn-primary" id="addUserBtn" style="padding:7px 16px;font-size:0.82rem;">+ Add User</button>
+            </div>
+        </div>
+
+        <div class="components-table-wrapper">
+            <table class="components-table" id="usersAdminTable">
+                <thead>
+                    <tr>
+                        <th>Username / Email</th>
+                        <th>Full Name</th>
+                        <th>Email</th>
+                        <th>Last Login</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td><strong>{{ u.user_name }}</strong></td>
+                        <td>{{ u.user_gecos or '—' }}</td>
+                        <td>{{ u.user_email or '—' }}</td>
+                        <td class="date-muted">{{ u.user_last_login[:16].replace('T', ' ') if u.user_last_login else '—' }}</td>
+                        <td>
+                            <span class="status-pill status-{{ u.user_status }}">{{ u.user_status }}</span>
+                        </td>
+                        <td>
+                            <a href="admin/users/{{ u.id }}/edit" class="btn-icon-edit">Edit</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</body>
+</html>
