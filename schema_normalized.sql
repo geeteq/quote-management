@@ -256,6 +256,8 @@ CREATE TABLE IF NOT EXISTS projects (
     tenant_id INTEGER NOT NULL,
     description TEXT,
     comments TEXT,
+    delivery_deadline DATE,
+    budget REAL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive', 'archived')),

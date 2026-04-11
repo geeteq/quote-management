@@ -697,6 +697,16 @@ def migrate_db():
             db.commit()
             logger.info("M25: quotes.pdf_path renamed to file_path")
 
+        # ── M26: add projects.delivery_deadline and projects.budget ───────────
+        if 'delivery_deadline' not in cols('projects'):
+            db.execute("ALTER TABLE projects ADD COLUMN delivery_deadline DATE")
+            db.commit()
+            logger.info("M26: projects.delivery_deadline column added")
+        if 'budget' not in cols('projects'):
+            db.execute("ALTER TABLE projects ADD COLUMN budget REAL")
+            db.commit()
+            logger.info("M26: projects.budget column added")
+
     finally:
         db.execute("PRAGMA foreign_keys = ON")
         db.close()
@@ -1682,6 +1692,8 @@ def api_navigation_hierarchy():
                 p.id,
                 p.name,
                 p.description,
+                p.delivery_deadline,
+                p.budget,
                 p.status,
                 COUNT(q.id) as quote_count
             FROM projects p
@@ -2781,6 +2793,9 @@ def admin_project_create():
     project_name = request.form.get('project_name', '').strip()
     tenant_id = request.form.get('tenant_id', '').strip()
     description = request.form.get('description', '').strip()
+    delivery_deadline = request.form.get('delivery_deadline', '').strip() or None
+    budget_raw = request.form.get('budget', '').strip()
+    budget = float(budget_raw) if budget_raw else None
 
     if not project_name or not tenant_id:
         return jsonify({'error': 'Project name and tenant are required'}), 400
@@ -2789,9 +2804,9 @@ def admin_project_create():
     try:
         cursor = db.cursor()
         cursor.execute('''
-            INSERT INTO projects (name, tenant_id, description, status)
-            VALUES (?, ?, ?, 'active')
-        ''', (project_name, int(tenant_id), description))
+            INSERT INTO projects (name, tenant_id, description, delivery_deadline, budget, status)
+            VALUES (?, ?, ?, ?, ?, 'active')
+        ''', (project_name, int(tenant_id), description, delivery_deadline, budget))
         db.commit()
         project_id = cursor.lastrowid
         logger.info(f"Created project: {project_name} for tenant {tenant_id} (ID: {project_id})")
@@ -2813,7 +2828,7 @@ def admin_project_edit(project_id):
     """Show edit form for a project."""
     db = get_db()
     project = db.execute(
-        'SELECT id, name, comments, status FROM projects WHERE id = ?', (project_id,)
+        'SELECT id, name, comments, delivery_deadline, budget, status FROM projects WHERE id = ?', (project_id,)
     ).fetchone()
     db.close()
     if not project:
@@ -2826,6 +2841,9 @@ def admin_project_update(project_id):
     """Save project edits and redirect to admin."""
     project_name = request.form.get('project_name', '').strip()
     comments = request.form.get('project_comments', '').strip()
+    delivery_deadline = request.form.get('delivery_deadline', '').strip() or None
+    budget_raw = request.form.get('budget', '').strip()
+    budget = float(budget_raw) if budget_raw else None
 
     if not project_name:
         return "Project name is required", 400
@@ -2834,9 +2852,9 @@ def admin_project_update(project_id):
     try:
         db.execute('''
             UPDATE projects
-            SET name = ?, comments = ?, updated_at = CURRENT_TIMESTAMP
+            SET name = ?, comments = ?, delivery_deadline = ?, budget = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        ''', (project_name, comments or None, project_id))
+        ''', (project_name, comments or None, delivery_deadline, budget, project_id))
         db.commit()
         logger.info(f"Updated project {project_id}: name={project_name}")
     except sqlite3.IntegrityError:

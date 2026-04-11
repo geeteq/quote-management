@@ -1100,6 +1100,8 @@
             container.innerHTML = html;
         }
 
+        const _projectCache = {};
+
         // Render projects for a tenant
         function renderProjects(projects) {
             if (!projects || projects.length === 0) {
@@ -1107,6 +1109,7 @@
             }
 
             return projects.map(project => {
+                _projectCache[project.id] = project;
                 const hasVendors = project.vendors && project.vendors.length > 0;
                 const expandArrow = hasVendors
                     ? `<span class="nav-expand" id="expand-project-${project.id}" onclick="toggleProject(${project.id}, event)">▶</span>`
@@ -1220,9 +1223,32 @@
             }
         }
 
+        function _renderProjectBanner(projectId) {
+            const p = _projectCache[projectId];
+            if (!p || (!p.delivery_deadline && !p.budget)) return '';
+            const parts = [];
+            if (p.delivery_deadline) {
+                const deadline = new Date(p.delivery_deadline);
+                const today = new Date(); today.setHours(0,0,0,0);
+                const diff = Math.round((deadline - today) / 86400000);
+                const dateStr = deadline.toLocaleDateString('en-CA');
+                let urgency = '';
+                if (diff < 0) urgency = ' project-deadline-overdue';
+                else if (diff <= 14) urgency = ' project-deadline-soon';
+                const label = diff < 0 ? `${Math.abs(diff)}d overdue` : diff === 0 ? 'Today' : `${diff}d left`;
+                parts.push(`<span class="project-banner-item"><span class="project-banner-label">Deadline</span><span class="project-banner-value${urgency}">${dateStr} <span class="project-deadline-badge${urgency}">${label}</span></span></span>`);
+            }
+            if (p.budget) {
+                const fmt = parseFloat(p.budget).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+                parts.push(`<span class="project-banner-item"><span class="project-banner-label">Budget</span><span class="project-banner-value">$${fmt}</span></span>`);
+            }
+            return `<div class="project-banner">${parts.join('')}</div>`;
+        }
+
         function renderProjectView(configs, quotes, projectId) {
             const content = document.getElementById('quotesContent');
             content.innerHTML = `
+                ${_renderProjectBanner(projectId)}
                 <div class="project-section">
                     <div class="project-section-header">
                         <h2 class="project-section-title">Base Configs</h2>

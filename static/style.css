@@ -70,6 +70,12 @@ header h1 {
     gap: 8px;
 }
 
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
 .form-group label {
     font-weight: 600;
     color: #555;
@@ -2327,6 +2333,63 @@ button:hover {
 }
 
 /* Project Section in Tenant View */
+.project-banner {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    background: #f8faff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px 20px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+}
+
+.project-banner-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.project-banner-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #94a3b8;
+}
+
+.project-banner-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.project-deadline-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 8px;
+    background: #e2f0ff;
+    color: #2563eb;
+}
+
+.project-deadline-badge.project-deadline-soon {
+    background: #fef9c3;
+    color: #92400e;
+}
+
+.project-deadline-badge.project-deadline-overdue {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.project-banner-value.project-deadline-overdue { color: #b91c1c; }
+.project-banner-value.project-deadline-soon    { color: #92400e; }
+
 .project-section {
     background: white;
     border-radius: 12px;
