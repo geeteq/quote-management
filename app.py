@@ -985,7 +985,7 @@ def get_all_quotes():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if session.get('user_name'):
-        return redirect(url_for('index'))
+        return redirect(BASE_HREF)
     error = None
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
@@ -1004,7 +1004,7 @@ def login():
             )
             db2.commit()
             db2.close()
-            return redirect(url_for('index'))
+            return redirect(BASE_HREF)
         elif user and user['user_status'] == 'disabled':
             error = 'Account is disabled.'
         else:
@@ -1015,7 +1015,7 @@ def login():
 @app.route('/logout')
 def logout():
     session.clear()
-    return redirect(url_for('login'))
+    return redirect(BASE_HREF + 'login')
 
 
 @app.before_request
@@ -1025,7 +1025,7 @@ def require_login():
     if request.path in public or request.path.startswith('/static/'):
         return None
     if not session.get('user_name'):
-        return redirect(url_for('login'))
+        return redirect(BASE_HREF + 'login')
 
 
 @app.route('/')
